@@ -63,6 +63,30 @@ def filter_recent(df: pd.DataFrame, days_back: int) -> pd.DataFrame:
     return data[data["date"] >= cutoff].copy()
 
 
+def data_quality_summary(df: pd.DataFrame) -> dict:
+    dates = pd.to_datetime(df["date"], errors="coerce")
+    geography_matches: list[str] = []
+    if "geography_matches" in df:
+        for value in df["geography_matches"].dropna():
+            geography_matches.extend(part.strip() for part in str(value).split(";") if part.strip())
+    top_geographies = (
+        {str(key): int(value) for key, value in pd.Series(geography_matches).value_counts().head(5).items()}
+        if geography_matches
+        else {}
+    )
+    source_column = "domain" if "domain" in df else "source_name"
+    top_sources = {
+        str(key): int(value)
+        for key, value in df[source_column].fillna(df["source_name"]).value_counts().head(5).items()
+    }
+    return {
+        "articles": len(df),
+        "date_range": f"{dates.min().date()} to {dates.max().date()}" if not dates.empty else "n/a",
+        "top_geographies": top_geographies,
+        "top_sources": top_sources,
+    }
+
+
 def inject_css() -> None:
     st.markdown(
         """
@@ -224,6 +248,14 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Overview")
     st.write("A five-minute walkthrough starts here: what moved, where it matters, and what research should happen next.")
     render_executive_summary(df, rollup)
+    if "public news via GDELT" in set(df["source_type"].dropna()):
+        summary = data_quality_summary(df)
+        st.info(
+            "Real-data quality note: "
+            f"{summary['articles']} articles loaded | {summary['date_range']} | "
+            f"top geographies: {summary['top_geographies']} | "
+            f"top sources: {summary['top_sources']}"
+        )
     st.divider()
 
     left, right = st.columns([1.3, 1])
