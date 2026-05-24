@@ -2,9 +2,9 @@
 
 **Narrative intelligence prototype for campaign research**
 
-Social Listening is a lightweight narrative intelligence prototype for campaign research. It shows how real public discourse can be transformed into issue trends, emerging narratives, message hypotheses, research memos, and strategist-ready research artifacts.
+Social Listening is a premium narrative intelligence prototype for campaign research. It shows how public discourse can be transformed into issue movement, emerging narratives, message hypotheses, research memos, and strategist-ready research artifacts.
 
-By default, the app uses real public news data from the **GDELT 2.1 DOC API**. GDELT requires no API key. Sample data is included only as a fallback/demo mode so the app remains usable if the network is unavailable.
+By default, the app uses a **synthetic operational-scale demo corpus** generated from real NY discourse patterns. Real GDELT public news remains available as a data-source toggle, and sample data is included only as a fallback/demo mode.
 
 It also includes a small downstream **Bandit Readiness** layer showing how structured narrative signals could feed future adaptive experimentation, but no real voter targeting or persuasion optimization is performed.
 
@@ -33,9 +33,17 @@ flowchart LR
     F --> G["Optional bandit-ready structured outputs"]
 ```
 
-## Real Data By Default
+## Data Modes
 
-The sidebar defaults to **Real GDELT data**:
+The sidebar includes three data modes:
+
+- **Operational-scale demo corpus:** default mode; approximately 2,600 discourse artifacts generated from observed NY issue/geography patterns.
+- **Real GDELT data:** live public news from the GDELT 2.1 DOC API, no API key required.
+- **Sample demo data:** offline fallback mode.
+
+Real public news volume from GDELT is relatively sparse for narrowly constrained NY political narratives, so the operational demo corpus extrapolates realistic statewide monitoring volume from observed patterns.
+
+For real GDELT mode:
 
 - If `data/gdelt_articles.csv` exists, the app loads it.
 - If it does not exist, click **Fetch latest GDELT articles**.
@@ -47,7 +55,8 @@ The collector lives in `src/collect_gdelt.py` and queries public English-languag
 
 ## What The App Shows
 
-- **Overview:** executive summary, issue volume by day, issue mix, tone by issue, and top New York geographies.
+- **Above-the-fold briefing:** hero insight, three strategic implications, and one dominant narrative momentum visualization.
+- **Overview:** issue movement, tone by issue, geography concentration, and data-quality notes.
 - **Narrative Radar:** transparent keyword classification, tone scoring, narrative intensity, spike score, and `watch/test/ignore` flags.
 - **Research Memo:** campaign research synthesis with what changed, likely concerns, message hypotheses, next tests, and limitations.
 - **Research Outputs:** weekly issue brief, geography watchlist, message hypothesis bank, and polling/focus group questions with downloadable files.
@@ -71,6 +80,12 @@ The secondary layer is machine-readable scaffolding for future experimentation:
 - reward definitions
 - simulated experiment log
 - off-policy evaluation framing
+
+## Interpreting The Scores
+
+- **Spike score:** estimated discussion volume compared with the recent baseline. A score near `3` means discussion is roughly 3x above normal.
+- **Narrative intensity:** a lightweight triage score based on keyword density, urgency language, and source amplification.
+- **Radar flag:** a research-priority label. `test` means move toward message hypothesis testing; `watch` means analyst monitoring; `ignore` means low current priority.
 
 ## Core Issue Areas
 
@@ -130,12 +145,12 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Then open the local Streamlit URL. In the sidebar, keep **Real GDELT data** selected and click **Fetch latest GDELT articles** if no local cache exists.
+Then open the local Streamlit URL. The default data source is **Operational-scale demo corpus**. Switch to **Real GDELT data** in the sidebar when you want to fetch or inspect the live public-news cache.
 
 ## 5-Minute Demo Walkthrough
 
 1. Start with the landing story: public discourse becomes issue detection, narrative monitoring, research synthesis, and message hypotheses.
-2. Show that the app is using real GDELT public news by default, with sample data only as fallback.
+2. Show the operational-scale corpus note and explain why it simulates statewide monitoring volume.
 3. Show the Overview metrics and executive summary.
 4. Show an issue spike and explain the `watch/test/ignore` flag.
 5. Open Narrative Radar and show the transparent keyword rules, tone, intensity, and top snippets.
@@ -155,11 +170,14 @@ assets/README_screenshots_placeholder.md
 data/sample_articles.csv
 data/sample_bandit_log.csv
 data/gdelt_articles.csv
+data/operational_demo_corpus.csv
 src/classify_topics.py
 src/scoring.py
 src/generate_memo.py
 src/bandit_simulator.py
 src/collect_gdelt.py
+src/synthetic_corpus.py
+src/research_outputs.py
 outputs/sample_research_memo.md
 outputs/weekly_issue_brief.md
 outputs/geography_watchlist.csv

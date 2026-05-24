@@ -1,37 +1,37 @@
 # Social Listening Research Memo
 
-**Window:** 2026-05-23 to 2026-05-24
+**Window:** 2026-05-09 to 2026-05-23
 
 ## What Changed
-- The public-discourse set contains 15 items across 5 issue areas.
-- Highest-volume issue: AI / tech jobs.
+- The public-discourse set contains 1247 items across 5 issue areas.
+- Highest-volume issue: affordability / cost of living.
 - Highest-intensity issue: corruption / competence / trust.
 
 ## Issues Spiking
-- **AI / tech jobs**: test (spike score 3.00, avg intensity 3.0).
-- **affordability / cost of living**: test (spike score 2.00, avg intensity 3.0).
-- **immigration / public safety**: test (spike score 2.00, avg intensity 3.0).
-- **corruption / competence / trust**: test (spike score 1.00, avg intensity 4.0).
-- **housing / rent**: test (spike score 1.00, avg intensity 3.0).
+- **corruption / competence / trust**: test (spike score 0.24, avg intensity 5.1).
+- **AI / tech jobs**: watch (spike score 0.09, avg intensity 3.6).
+- **immigration / public safety**: watch (spike score 0.05, avg intensity 3.6).
+- **housing / rent**: watch (spike score 0.00, avg intensity 3.9).
+- **affordability / cost of living**: watch (spike score 0.00, avg intensity 3.6).
 
 ## Likely Voter Concern Behind The Discourse
 - **AI / tech jobs:** workers asking whether economic change will create opportunity or displacement.
-- **affordability / cost of living:** households feeling squeezed by prices, taxes, utilities, and daily expenses.
 - **immigration / public safety:** residents looking for order, fairness, and visible quality-of-life management.
-- **corruption / competence / trust:** voters questioning whether institutions can deliver honestly and competently.
 - **housing / rent:** renters and families worried that stable housing is moving out of reach.
+- **affordability / cost of living:** households feeling squeezed by prices, taxes, utilities, and daily expenses.
+- **corruption / competence / trust:** voters questioning whether institutions can deliver honestly and competently.
 
 ## Recommended Message Hypotheses
 - **AI / tech jobs:** Emphasize worker readiness, regional opportunity, and guardrails for automation.
 - **AI / tech jobs:** Test jobs-and-training language against broader innovation competitiveness framing.
-- **affordability / cost of living:** Connect cost pressure to concrete household relief and fiscal discipline.
-- **affordability / cost of living:** Test whether local examples of lower everyday costs outperform generic affordability language.
 - **immigration / public safety:** Separate compassion, order, and quality-of-life concerns in transparent language.
 - **immigration / public safety:** Test whether operational competence language lowers heat around safety narratives.
-- **corruption / competence / trust:** Lead with accountability, procurement clarity, and measurable delivery standards.
-- **corruption / competence / trust:** Test a trust-and-results message against a stronger anti-corruption contrast.
 - **housing / rent:** Frame housing as stability, neighborhood continuity, and faster delivery of units.
 - **housing / rent:** Test problem-solving language on permitting, vacancies, and tenant protections.
+- **affordability / cost of living:** Connect cost pressure to concrete household relief and fiscal discipline.
+- **affordability / cost of living:** Test whether local examples of lower everyday costs outperform generic affordability language.
+- **corruption / competence / trust:** Lead with accountability, procurement clarity, and measurable delivery standards.
+- **corruption / competence / trust:** Test a trust-and-results message against a stronger anti-corruption contrast.
 
 ## What Should Be Tested Next
 - Convert watch/test issues into candidate message arms: economic frame, values/trust frame, and competence/problem-solving frame.

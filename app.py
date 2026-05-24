@@ -16,10 +16,12 @@ from src.collect_gdelt import fetch_latest_gdelt_articles
 from src.generate_memo import generate_research_memo
 from src.research_outputs import export_research_outputs
 from src.scoring import add_scores, add_spike_scores, daily_issue_volume, issue_rollup
+from src.synthetic_corpus import generate_operational_demo_corpus
 
 ROOT = Path(__file__).parent
 ARTICLE_PATH = ROOT / "data" / "sample_articles.csv"
 GDELT_PATH = ROOT / "data" / "gdelt_articles.csv"
+OPERATIONAL_PATH = ROOT / "data" / "operational_demo_corpus.csv"
 BANDIT_LOG_PATH = ROOT / "data" / "sample_bandit_log.csv"
 MEMO_PATH = ROOT / "outputs" / "sample_research_memo.md"
 
@@ -42,6 +44,13 @@ def prepare_articles(raw: pd.DataFrame) -> pd.DataFrame:
 @st.cache_data
 def load_sample_articles() -> pd.DataFrame:
     return prepare_articles(pd.read_csv(ARTICLE_PATH))
+
+
+@st.cache_data
+def load_operational_articles(path: str) -> pd.DataFrame:
+    if not Path(path).exists():
+        generate_operational_demo_corpus(output_path=path)
+    return prepare_articles(pd.read_csv(path))
 
 
 @st.cache_data
@@ -92,63 +101,100 @@ def inject_css() -> None:
     st.markdown(
         """
         <style>
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
+        html, body, [class*="css"] {
+            font-family: 'Manrope', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
         .stApp {
-            background: #f7f8fb;
-            color: #1f2937;
+            background:
+                radial-gradient(circle at 18% 0%, rgba(79, 70, 229, 0.08), transparent 28%),
+                linear-gradient(180deg, #fbfbfc 0%, #f5f6f8 44%, #ffffff 100%);
+            color: #15171c;
         }
         h1, h2, h3 {
             letter-spacing: 0;
+            color: #111318;
         }
-        div[data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px 18px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        .block-container {
+            max-width: 1280px;
+            padding-top: 2.1rem;
+            padding-bottom: 4rem;
         }
-        .radar-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
+        div[data-testid="stMetric"],
+        div[data-testid="stDataFrame"],
+        div[data-testid="stVegaLiteChart"] {
+            border-radius: 18px;
         }
-        .story-strip {
-            background: #111827;
+        .hero-panel {
+            background: linear-gradient(135deg, #111318 0%, #202532 58%, #394150 100%);
+            color: #f8fafc;
+            border: 1px solid rgba(255,255,255,0.10);
+            border-radius: 28px;
+            padding: 34px 38px;
+            margin: 18px 0 18px 0;
+            box-shadow: 0 28px 70px rgba(17, 19, 24, 0.25);
+            min-height: 250px;
+        }
+        .eyebrow {
+            color: #b9c1d1;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-weight: 700;
+            margin-bottom: 18px;
+        }
+        .hero-title {
             color: #ffffff;
-            border-radius: 8px;
-            padding: 18px 20px;
-            margin: 14px 0 18px 0;
-            font-size: 1.05rem;
-            font-weight: 650;
+            font-size: clamp(2rem, 4.2vw, 4.6rem);
+            line-height: 0.98;
+            font-weight: 800;
+            letter-spacing: -0.035em;
+            max-width: 980px;
+            margin-bottom: 18px;
         }
-        .summary-card {
-            background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            min-height: 150px;
-            padding: 16px;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        .hero-subtext {
+            color: #d8dee9;
+            font-size: 1.08rem;
+            line-height: 1.65;
+            max-width: 860px;
+        }
+        .insight-card {
+            background: rgba(255,255,255,0.78);
+            border: 1px solid rgba(17, 19, 24, 0.07);
+            border-radius: 22px;
+            padding: 21px 22px;
+            min-height: 162px;
+            box-shadow: 0 18px 50px rgba(17, 19, 24, 0.07);
+            backdrop-filter: blur(18px);
         }
         .summary-label {
-            color: #4b5563;
+            color: #69707d;
             font-size: 0.78rem;
             font-weight: 750;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.08em;
             text-transform: uppercase;
             margin-bottom: 8px;
         }
         .summary-body {
-            color: #111827;
-            font-size: 0.98rem;
-            line-height: 1.45;
+            color: #14171f;
+            font-size: 1.05rem;
+            line-height: 1.55;
         }
         .principle-card {
             background: #ffffff;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 16px;
+            border: 1px solid rgba(17, 19, 24, 0.08);
+            border-radius: 18px;
+            padding: 20px;
             min-height: 184px;
+            box-shadow: 0 14px 36px rgba(17, 19, 24, 0.06);
+        }
+        .radar-card {
+            background: #ffffff;
+            border: 1px solid rgba(17, 19, 24, 0.08);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 14px;
+            box-shadow: 0 12px 28px rgba(17, 19, 24, 0.05);
         }
         .flag-test {
             color: #991b1b;
@@ -165,6 +211,25 @@ def inject_css() -> None:
         .small-muted {
             color: #6b7280;
             font-size: 0.92rem;
+        }
+        .definition-note {
+            color: #555d6b;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(17, 19, 24, 0.07);
+            border-radius: 16px;
+            padding: 16px 18px;
+            line-height: 1.55;
+            margin: 10px 0 18px 0;
+        }
+        div[data-testid="stDataFrame"] div {
+            white-space: normal !important;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 6px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 999px;
+            padding: 10px 16px;
         }
         </style>
         """,
@@ -183,72 +248,76 @@ def chart_dataframes(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
     return volume, issue_mix, tone
 
 
+def strategic_context(df: pd.DataFrame, rollup: pd.DataFrame) -> dict:
+    top_issue = rollup.sort_values(["spike_score", "mentions", "avg_intensity"], ascending=False).iloc[0]
+    second_issue = rollup.sort_values(["mentions", "spike_score"], ascending=False).iloc[min(1, len(rollup) - 1)]
+    geo_counts = geography_counts(df.to_dict(orient="records"))
+    top_geos = list(geo_counts.keys())[:2] or ["Statewide"]
+    top_geo_text = " and ".join(top_geos)
+    spike = float(top_issue["spike_score"])
+    spike_text = f"discussion volume is about {max(spike, 1):.1f}x above recent baseline"
+    action = "move into message testing" if top_issue["radar_flag"] == "test" else "keep under analyst monitoring"
+    return {
+        "hero": f"{top_issue['classified_issue_area']} is moving fastest in {top_geo_text}.",
+        "subtext": (
+            f"{top_issue['classified_issue_area']} and {second_issue['classified_issue_area']} are now the leading "
+            f"signals in the monitoring window. Operationally, {spike_text}, which means strategists should "
+            f"{action} rather than wait for another news cycle."
+        ),
+        "concern": (
+            f"Strongest emerging concern: {top_issue['classified_issue_area']}. "
+            f"Discussion volume is about {max(spike, 1):.1f}x above recent baseline."
+        ),
+        "geography": f"Most discussion is concentrated in {top_geo_text}.",
+        "action": f"Recommended action: {action} with human analyst review.",
+    }
+
+
 def render_header(df: pd.DataFrame, rollup: pd.DataFrame, data_label: str) -> None:
+    context = strategic_context(df, rollup)
     st.title("Social Listening")
-    st.caption(
-        "Narrative intelligence prototype for campaign research."
-    )
+    st.caption("Narrative intelligence prototype for campaign research.")
     st.markdown(
-        """
-        <div class="story-strip">
-            Public discourse -> issue detection -> narrative monitoring -> research synthesis -> message hypotheses
+        f"""
+        <div class="hero-panel">
+            <div class="eyebrow">Adaptive intelligence briefing | {len(df):,} discourse artifacts | {data_label}</div>
+            <div class="hero-title">{context['hero']}</div>
+            <div class="hero-subtext">{context['subtext']}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    cols = st.columns(4)
-    cols[0].metric("Total mentions", f"{len(df):,}")
-    cols[1].metric("Issue areas", df["classified_issue_area"].nunique())
-    cols[2].metric("Watch/Test issues", int(rollup["radar_flag"].isin(["watch", "test"]).sum()))
-    cols[3].metric(data_label, str(pd.to_datetime(df["date"]).max().date()))
-
-
-def render_executive_summary(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
-    top_issue = rollup.sort_values(["spike_score", "avg_intensity"], ascending=False).iloc[0]
-    top_geo = next(iter(geography_counts(df.to_dict(orient="records"))), "Statewide")
-    test_issues = rollup[rollup["radar_flag"] == "test"]["classified_issue_area"].tolist()
-    watch_issues = rollup[rollup["radar_flag"] == "watch"]["classified_issue_area"].tolist()
-    next_issue = test_issues[0] if test_issues else (watch_issues[0] if watch_issues else top_issue["classified_issue_area"])
-
     cards = [
-        (
-            "What changed",
-            f"{top_issue['classified_issue_area']} is carrying the strongest recent signal "
-            f"(spike {top_issue['spike_score']:.2f}, intensity {top_issue['avg_intensity']:.1f}).",
-        ),
-        (
-            "Where it matters",
-            f"The sample points first to {top_geo}, with geography mentions used as research context rather than individual-level decisions.",
-        ),
-        (
-            "What to test next",
-            f"Turn {next_issue} into economic, values/trust, and competence/problem-solving message hypotheses.",
-        ),
-        (
-            "What the system would learn",
-            "Which narratives are emerging, which concerns sit underneath them, and which message hypotheses deserve testing.",
-        ),
+        ("Emerging concern", context["concern"]),
+        ("Geographic concentration", context["geography"]),
+        ("Strategic next step", context["action"]),
     ]
-
-    st.write("**Executive Summary**")
-    columns = st.columns(4)
+    columns = st.columns([1.05, 1, 1])
     for column, (label, body) in zip(columns, cards):
         column.markdown(
             f"""
-            <div class="summary-card">
+            <div class="insight-card">
                 <div class="summary-label">{label}</div>
                 <div class="summary-body">{body}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+    st.write("")
+    st.write("**Narrative Momentum**")
+    momentum = daily_issue_volume(df)
+    st.area_chart(momentum, x="date", y="mentions", color="classified_issue_area", height=360)
 
 
 def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     volume, issue_mix, tone = chart_dataframes(df)
     st.subheader("Overview")
-    st.write("A five-minute walkthrough starts here: what moved, where it matters, and what research should happen next.")
-    render_executive_summary(df, rollup)
+    st.write("Strategic readout of issue movement, geography concentration, and research priority.")
+    if "is_synthetic_operational_demo" in df.columns and bool(df["is_synthetic_operational_demo"].fillna(False).any()):
+        st.info(
+            "Synthetic operational-scale demo corpus generated from real NY discourse patterns. "
+            "It simulates statewide monitoring volume while preserving observed issue and geography signals."
+        )
     if "public news via GDELT" in set(df["source_type"].dropna()):
         summary = data_quality_summary(df)
         st.info(
@@ -259,11 +328,11 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         )
     st.divider()
 
-    left, right = st.columns([1.3, 1])
+    left, right = st.columns([1.2, 1])
     with left:
-        st.line_chart(volume, x="date", y="mentions", color="classified_issue_area", height=320)
+        st.line_chart(volume, x="date", y="mentions", color="classified_issue_area", height=340)
     with right:
-        st.bar_chart(issue_mix, x="issue_area", y="mentions", height=320)
+        st.bar_chart(issue_mix, x="issue_area", y="mentions", height=340)
 
     c1, c2 = st.columns([1, 1])
     with c1:
@@ -280,6 +349,11 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
             .style.format({"avg_sentiment_score": "{:.2f}", "avg_narrative_intensity": "{:.1f}"}),
             hide_index=True,
             width="stretch",
+            height=280,
+            column_config={
+                "issue_area": st.column_config.TextColumn("issue area", width="medium"),
+                "radar_flag": st.column_config.TextColumn("recommended priority", width="small"),
+            },
         )
     with c2:
         geo = pd.DataFrame(
@@ -296,8 +370,17 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
 def render_narrative_radar(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Narrative Radar")
     st.write(
-        "Articles and posts are classified with transparent keyword rules, then scored for tone, "
-        "narrative intensity, and spikes versus a rolling baseline."
+        "Transparent rules convert public discourse into issue movement, tone, and research priority."
+    )
+    st.markdown(
+        """
+        <div class="definition-note">
+        <strong>How to read this:</strong> spike score estimates how far discussion volume is above the recent
+        baseline; a score near 3 means roughly 3x normal volume. Intensity combines keyword density, urgency
+        language, and source amplification. These are triage signals for strategists, not truth labels.
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
 
     with st.expander("Keyword rules used for classification", expanded=False):
@@ -318,8 +401,8 @@ def render_narrative_radar(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
           <div class="{flag_class}">{selected_row['radar_flag'].upper()}</div>
           <div><strong>{selected_issue}</strong></div>
           <div class="small-muted">
-            Spike score {selected_row['spike_score']:.2f} |
-            Avg intensity {selected_row['avg_intensity']:.1f} |
+            Discussion volume is about {max(float(selected_row['spike_score']), 1):.1f}x recent baseline |
+            Narrative intensity {selected_row['avg_intensity']:.1f} |
             Avg sentiment {selected_row['avg_sentiment']:.2f}
           </div>
         </div>
@@ -345,6 +428,12 @@ def render_narrative_radar(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         ].head(8),
         hide_index=True,
         width="stretch",
+        height=420,
+        column_config={
+            "headline": st.column_config.TextColumn("headline", width="large"),
+            "snippet": st.column_config.TextColumn("snippet", width="large"),
+            "date": st.column_config.TextColumn("date", width="small"),
+        },
     )
 
 
@@ -366,7 +455,17 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     paths = outputs["paths"]
 
     st.write("**Weekly Issue Brief**")
-    st.dataframe(outputs["weekly_issue_brief_table"], hide_index=True, width="stretch")
+    st.dataframe(
+        outputs["weekly_issue_brief_table"],
+        hide_index=True,
+        width="stretch",
+        height=360,
+        column_config={
+            "interpretation": st.column_config.TextColumn("interpretation", width="large"),
+            "top_sources": st.column_config.TextColumn("top sources", width="medium"),
+            "top_geographies": st.column_config.TextColumn("top geographies", width="medium"),
+        },
+    )
     st.download_button(
         "Download weekly_issue_brief.md",
         data=Path(paths["weekly_issue_brief"]).read_text(encoding="utf-8"),
@@ -375,7 +474,16 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     )
 
     st.write("**County / Geography Watchlist**")
-    st.dataframe(outputs["geography_watchlist"], hide_index=True, width="stretch")
+    st.dataframe(
+        outputs["geography_watchlist"],
+        hide_index=True,
+        width="stretch",
+        height=420,
+        column_config={
+            "why_it_matters": st.column_config.TextColumn("why it matters", width="large"),
+            "recommended_next_step": st.column_config.TextColumn("recommended next step", width="medium"),
+        },
+    )
     st.download_button(
         "Download geography_watchlist.csv",
         data=outputs["geography_watchlist"].to_csv(index=False),
@@ -384,7 +492,19 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     )
 
     st.write("**Message Hypothesis Bank**")
-    st.dataframe(outputs["message_hypothesis_bank"], hide_index=True, width="stretch")
+    st.dataframe(
+        outputs["message_hypothesis_bank"],
+        hide_index=True,
+        width="stretch",
+        height=460,
+        column_config={
+            "economic_frame": st.column_config.TextColumn("economic frame", width="large"),
+            "competence_frame": st.column_config.TextColumn("competence frame", width="large"),
+            "values_trust_frame": st.column_config.TextColumn("values/trust frame", width="large"),
+            "recommended_audience_hypothesis": st.column_config.TextColumn("audience hypothesis", width="large"),
+            "risk_or_caveat": st.column_config.TextColumn("risk/caveat", width="large"),
+        },
+    )
     st.download_button(
         "Download message_hypothesis_bank.csv",
         data=outputs["message_hypothesis_bank"].to_csv(index=False),
@@ -421,11 +541,17 @@ def render_bandit_readiness(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     with left:
         st.write("**1. Context Features From The Radar**")
         st.caption("These are issue and discourse features, not private voter records.")
-        st.dataframe(context_features, hide_index=True, width="stretch")
+        st.dataframe(context_features, hide_index=True, width="stretch", height=360)
     with right:
         st.write("**2. Candidate Message Arms**")
         st.caption("Each arm is a testable research hypothesis, not a persuasion claim.")
-        st.dataframe(generate_message_arms(selected_issue), hide_index=True, width="stretch")
+        st.dataframe(
+            generate_message_arms(selected_issue),
+            hide_index=True,
+            width="stretch",
+            height=250,
+            column_config={"hypothesis": st.column_config.TextColumn("hypothesis", width="large")},
+        )
 
     st.write("**3. Hypothetical Reward Definitions**")
     reward_cols = st.columns(3)
@@ -466,10 +592,16 @@ def render_bandit_readiness(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         )
 
     with st.expander("Sample simulated bandit log", expanded=True):
-        st.dataframe(bandit_log, hide_index=True, width="stretch")
+        st.dataframe(bandit_log, hide_index=True, width="stretch", height=360)
 
     st.write("**4. Policy Simulator Output**")
-    st.dataframe(simulate_policies(bandit_log), hide_index=True, width="stretch")
+    st.dataframe(
+        simulate_policies(bandit_log),
+        hide_index=True,
+        width="stretch",
+        height=220,
+        column_config={"notes": st.column_config.TextColumn("notes", width="large")},
+    )
 
 
 def render_what_is() -> None:
@@ -526,8 +658,13 @@ def main() -> None:
         st.caption("Use real public news by default, with sample data as a fallback.")
         data_source = st.radio(
             "Data source",
-            options=["Real GDELT data", "Sample demo data"],
+            options=["Operational-scale demo corpus", "Real GDELT data", "Sample demo data"],
             index=0,
+        )
+        st.caption(
+            "Real public news volume from GDELT is relatively sparse for narrowly constrained NY political "
+            "narratives, so the operational demo corpus extrapolates realistic statewide monitoring volume "
+            "from observed patterns."
         )
         date_window = st.selectbox(
             "Date window",
@@ -552,7 +689,10 @@ def main() -> None:
                     gdelt_error = str(exc)
                     st.warning(f"GDELT fetch failed. Falling back to sample data. {gdelt_error}")
 
-        if data_source == "Real GDELT data" and GDELT_PATH.exists():
+        if data_source == "Operational-scale demo corpus":
+            df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+            data_label = "Operational demo corpus"
+        elif data_source == "Real GDELT data" and GDELT_PATH.exists():
             try:
                 df = filter_recent(load_gdelt_articles(str(GDELT_PATH)), days_back)
                 data_label = "Latest GDELT article"
