@@ -1,0 +1,21 @@
+timestamp,unit_id_anonymized,context_issue_area,context_geography,context_segment,message_arm,propensity_score,outcome_click,outcome_signup,outcome_donation,reward,logging_policy
+2026-05-10T09:15:00Z,U-1001,affordability / cost of living,Long Island,cost-pressured households,economic frame,0.333,1,0,0,0.42,simulated_uniform_policy
+2026-05-10T10:20:00Z,U-1002,housing / rent,NYC,renters and housing-cost concerned families,competence/problem-solving frame,0.333,1,1,0,0.68,simulated_uniform_policy
+2026-05-11T11:05:00Z,U-1003,immigration / public safety,NYC,quality-of-life and community safety voters,values/trust frame,0.333,0,0,0,0.18,simulated_uniform_policy
+2026-05-11T12:42:00Z,U-1004,AI / tech jobs,Western NY,workers weighing economic transition and opportunity,economic frame,0.333,1,0,1,0.74,simulated_uniform_policy
+2026-05-12T08:33:00Z,U-1005,corruption / competence / trust,Capital Region,accountability-focused swing persuadables,values/trust frame,0.333,1,0,0,0.55,simulated_uniform_policy
+2026-05-12T14:18:00Z,U-1006,affordability / cost of living,Western NY,cost-pressured households,competence/problem-solving frame,0.333,0,1,0,0.46,simulated_uniform_policy
+2026-05-13T16:01:00Z,U-1007,housing / rent,Hudson Valley,renters and housing-cost concerned families,economic frame,0.333,1,0,0,0.49,simulated_uniform_policy
+2026-05-13T17:26:00Z,U-1008,immigration / public safety,Long Island,quality-of-life and community safety voters,competence/problem-solving frame,0.333,1,0,0,0.51,simulated_uniform_policy
+2026-05-14T09:44:00Z,U-1009,AI / tech jobs,Central NY,workers weighing economic transition and opportunity,competence/problem-solving frame,0.333,1,1,0,0.70,simulated_uniform_policy
+2026-05-14T13:37:00Z,U-1010,corruption / competence / trust,Statewide,accountability-focused swing persuadables,economic frame,0.333,0,0,0,0.22,simulated_uniform_policy
+2026-05-15T10:15:00Z,U-1011,affordability / cost of living,NYC,cost-pressured households,values/trust frame,0.333,1,0,0,0.39,simulated_uniform_policy
+2026-05-15T11:47:00Z,U-1012,housing / rent,NYC,renters and housing-cost concerned families,values/trust frame,0.333,0,1,0,0.44,simulated_uniform_policy
+2026-05-16T15:08:00Z,U-1013,immigration / public safety,North Country,quality-of-life and community safety voters,economic frame,0.333,0,0,0,0.20,simulated_uniform_policy
+2026-05-16T18:21:00Z,U-1014,AI / tech jobs,NYC,workers weighing economic transition and opportunity,values/trust frame,0.333,1,0,0,0.48,simulated_uniform_policy
+2026-05-17T09:25:00Z,U-1015,corruption / competence / trust,Capital Region,accountability-focused swing persuadables,competence/problem-solving frame,0.333,1,1,0,0.76,simulated_uniform_policy
+2026-05-18T12:12:00Z,U-1016,affordability / cost of living,Long Island,cost-pressured households,economic frame,0.333,1,0,1,0.78,simulated_uniform_policy
+2026-05-19T14:03:00Z,U-1017,housing / rent,Hudson Valley,renters and housing-cost concerned families,competence/problem-solving frame,0.333,1,0,0,0.58,simulated_uniform_policy
+2026-05-20T20:11:00Z,U-1018,immigration / public safety,NYC,quality-of-life and community safety voters,competence/problem-solving frame,0.333,1,1,0,0.66,simulated_uniform_policy
+2026-05-21T08:59:00Z,U-1019,AI / tech jobs,Statewide,workers weighing economic transition and opportunity,economic frame,0.333,1,0,0,0.56,simulated_uniform_policy
+2026-05-22T19:30:00Z,U-1020,corruption / competence / trust,Statewide,accountability-focused swing persuadables,competence/problem-solving frame,0.333,1,0,1,0.82,simulated_uniform_policy
