@@ -12,11 +12,13 @@ from src.bandit_simulator import (
     simulate_policies,
 )
 from src.classify_topics import classify_records, geography_counts, summarize_keyword_rules
+from src.collect_gdelt import fetch_latest_gdelt_articles
 from src.generate_memo import generate_research_memo
 from src.scoring import add_scores, add_spike_scores, daily_issue_volume, issue_rollup
 
 ROOT = Path(__file__).parent
 ARTICLE_PATH = ROOT / "data" / "sample_articles.csv"
+GDELT_PATH = ROOT / "data" / "gdelt_articles.csv"
 BANDIT_LOG_PATH = ROOT / "data" / "sample_bandit_log.csv"
 MEMO_PATH = ROOT / "outputs" / "sample_research_memo.md"
 
@@ -30,16 +32,35 @@ st.set_page_config(
 
 
 @st.cache_data
-def load_articles() -> pd.DataFrame:
-    raw = pd.read_csv(ARTICLE_PATH)
+def prepare_articles(raw: pd.DataFrame) -> pd.DataFrame:
     classified = pd.DataFrame(classify_records(raw.to_dict(orient="records")))
     scored = add_scores(classified)
     return add_spike_scores(scored)
 
 
 @st.cache_data
+def load_sample_articles() -> pd.DataFrame:
+    return prepare_articles(pd.read_csv(ARTICLE_PATH))
+
+
+@st.cache_data
+def load_gdelt_articles(path: str) -> pd.DataFrame:
+    return prepare_articles(pd.read_csv(path))
+
+
+@st.cache_data
 def load_bandit_log() -> pd.DataFrame:
     return pd.read_csv(BANDIT_LOG_PATH)
+
+
+def filter_recent(df: pd.DataFrame, days_back: int) -> pd.DataFrame:
+    data = df.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    latest = data["date"].max()
+    if pd.isna(latest):
+        return data
+    cutoff = latest - pd.Timedelta(days=days_back)
+    return data[data["date"] >= cutoff].copy()
 
 
 def inject_css() -> None:
@@ -137,7 +158,7 @@ def chart_dataframes(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
     return volume, issue_mix, tone
 
 
-def render_header(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
+def render_header(df: pd.DataFrame, rollup: pd.DataFrame, data_label: str) -> None:
     st.title("Social Listening")
     st.caption(
         "Narrative intelligence prototype for campaign research."
@@ -154,7 +175,7 @@ def render_header(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     cols[0].metric("Total mentions", f"{len(df):,}")
     cols[1].metric("Issue areas", df["classified_issue_area"].nunique())
     cols[2].metric("Watch/Test issues", int(rollup["radar_flag"].isin(["watch", "test"]).sum()))
-    cols[3].metric("Latest sample", str(pd.to_datetime(df["date"]).max().date()))
+    cols[3].metric(data_label, str(pd.to_datetime(df["date"]).max().date()))
 
 
 def render_executive_summary(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
@@ -420,12 +441,58 @@ def render_ethics() -> None:
 
 def main() -> None:
     inject_css()
-    df = load_articles()
-    rollup = issue_rollup(df)
 
     with st.sidebar:
         st.header("Demo Controls")
-        st.caption("Filter the sample corpus for walkthroughs.")
+        st.caption("Use real public news by default, with sample data as a fallback.")
+        data_source = st.radio(
+            "Data source",
+            options=["Real GDELT data", "Sample demo data"],
+            index=0,
+        )
+        date_window = st.selectbox(
+            "Date window",
+            options=["Last 7 days", "Last 14 days", "Last 30 days"],
+            index=1,
+        )
+        days_back = int(date_window.split()[1])
+
+        gdelt_error = None
+        if data_source == "Real GDELT data":
+            if GDELT_PATH.exists():
+                st.caption(f"Loaded `{GDELT_PATH.name}`. Fetch again for fresher public news.")
+            else:
+                st.info("No local GDELT cache yet.")
+            if st.button("Fetch latest GDELT articles", type="primary"):
+                try:
+                    fetch_latest_gdelt_articles(days_back=days_back, output_path=GDELT_PATH)
+                    load_gdelt_articles.clear()
+                    st.success("Fetched latest GDELT articles.")
+                    st.rerun()
+                except Exception as exc:
+                    gdelt_error = str(exc)
+                    st.warning(f"GDELT fetch failed. Falling back to sample data. {gdelt_error}")
+
+        if data_source == "Real GDELT data" and GDELT_PATH.exists():
+            try:
+                df = filter_recent(load_gdelt_articles(str(GDELT_PATH)), days_back)
+                data_label = "Latest GDELT article"
+                if df.empty:
+                    st.warning("No GDELT rows in the selected date window. Falling back to sample data.")
+                    df = load_sample_articles()
+                    data_label = "Latest sample"
+            except Exception as exc:
+                st.warning(f"Could not load GDELT cache. Falling back to sample data. {exc}")
+                df = load_sample_articles()
+                data_label = "Latest sample"
+        else:
+            if data_source == "Real GDELT data" and not GDELT_PATH.exists() and gdelt_error is None:
+                st.warning("Real GDELT data has not been fetched yet. Showing sample data until you fetch.")
+            df = load_sample_articles()
+            data_label = "Latest sample"
+
+        st.divider()
+        st.caption("Filter the loaded corpus for walkthroughs.")
         issues = st.multiselect(
             "Issue areas",
             options=sorted(df["classified_issue_area"].unique()),
@@ -437,15 +504,16 @@ def main() -> None:
             default=sorted(df["source_type"].unique()),
         )
         st.divider()
-        st.caption("No API keys or internet access required.")
+        st.caption("GDELT requires internet access, but no API key. Sample mode works offline.")
 
+    rollup = issue_rollup(df)
     filtered = df[
         df["classified_issue_area"].isin(issues)
         & df["source_type"].isin(source_types)
     ].copy()
     filtered_rollup = issue_rollup(filtered) if not filtered.empty else rollup
 
-    render_header(filtered, filtered_rollup)
+    render_header(filtered, filtered_rollup, data_label)
     tab_overview, tab_radar, tab_memo, tab_bandit, tab_what_is, tab_ethics = st.tabs(
         [
             "Overview",

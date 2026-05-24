@@ -2,34 +2,48 @@
 
 **Narrative intelligence prototype for campaign research**
 
-Social Listening is a lightweight narrative intelligence prototype for campaign research. It shows how public discourse can be transformed into issue trends, emerging narratives, message hypotheses, and research memos.
+Social Listening is a lightweight narrative intelligence prototype for campaign research. It shows how real public discourse can be transformed into issue trends, emerging narratives, message hypotheses, and research memos.
+
+By default, the app uses real public news data from the **GDELT 2.1 DOC API**. GDELT requires no API key. Sample data is included only as a fallback/demo mode so the app remains usable if the network is unavailable.
 
 It also includes a small downstream **Bandit Readiness** layer showing how structured narrative signals could feed future adaptive experimentation, but no real voter targeting or persuasion optimization is performed.
-
-The internal demo dashboard is called **NY Narrative Radar** because the sample data is framed around New York 2026 midterm discourse. The primary project is social listening and narrative intelligence, not contextual bandits.
 
 ## Why This Exists
 
 Campaign research teams need a fast, explainable way to turn messy public conversation into research priorities. This prototype demonstrates that workflow without pretending to be a production platform:
 
-- detect issue areas in public discourse
+- detect issue areas in public news discourse
 - monitor narrative intensity and spikes
 - synthesize likely concerns behind the discourse
 - generate message hypotheses for human review
 - produce a short research memo
 - optionally structure outputs for future adaptive experimentation
 
+No private voter data is used. No social media scraping is required. Reddit, X, and other platform-specific sources could be future extensions only if collected through compliant APIs and reviewed safeguards.
+
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Public discourse / sample news data"] --> B["Issue classification"]
+    A["Public discourse / GDELT news data"] --> B["Issue classification"]
     B --> C["Tone and spike scoring"]
     C --> D["Narrative synthesis"]
     D --> E["Research memo"]
     E --> F["Message hypotheses"]
     F --> G["Optional bandit-ready structured outputs"]
 ```
+
+## Real Data By Default
+
+The sidebar defaults to **Real GDELT data**:
+
+- If `data/gdelt_articles.csv` exists, the app loads it.
+- If it does not exist, click **Fetch latest GDELT articles**.
+- If GDELT is unavailable, the app falls back to `data/sample_articles.csv` and shows a warning.
+- Date windows support last 7, 14, or 30 days.
+- Results are deduplicated by URL and title.
+
+The collector lives in `src/collect_gdelt.py` and queries public English-language news for New York geography terms across the existing issue areas.
 
 ## What The App Shows
 
@@ -57,7 +71,7 @@ This project is not a contextual bandit project. The bandit-ready layer is inten
 - simulated experiment log
 - off-policy evaluation as future work
 
-The included sample log is simulated. It demonstrates the shape of responsible logging: timestamp, anonymized unit ID, context, message arm, propensity score, outcomes, reward, and logging policy.
+The included sample experiment log is simulated. It demonstrates the shape of responsible logging: timestamp, anonymized unit ID, context, message arm, propensity score, outcomes, reward, and logging policy.
 
 ## What This Is / What This Is Not
 
@@ -78,28 +92,9 @@ This is not:
 - a real contextual bandit deployment
 - a claim of measured persuasion effects
 
-## What Is Simulated
-
-Simulated:
-
-- sample article/post dataset
-- sample bandit log
-- reward values
-- policy simulator outputs
-- message arm performance
-
-Real:
-
-- Streamlit dashboard
-- transparent classification rules
-- tone, intensity, and spike scoring pipeline
-- memo generation
-- context feature construction
-- repo structure ready for local demo
-
 ## How I Would Extend This In Production
 
-- Real public data ingestion
+- Real public data ingestion beyond GDELT
 - Platform-compliant social/news APIs
 - Geographic aggregation
 - Human analyst review
@@ -116,17 +111,18 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-The app runs entirely from local sample CSVs and does not require API keys or internet access.
+Then open the local Streamlit URL. In the sidebar, keep **Real GDELT data** selected and click **Fetch latest GDELT articles** if no local cache exists.
 
 ## 5-Minute Demo Walkthrough
 
 1. Start with the landing story: public discourse becomes issue detection, narrative monitoring, research synthesis, and message hypotheses.
-2. Show the Overview metrics and executive summary.
-3. Show an issue spike and explain the `watch/test/ignore` flag.
-4. Open Narrative Radar and show the transparent keyword rules, tone, intensity, and top snippets.
-5. Show the generated Research Memo as the campaign research output.
-6. Briefly show Bandit Readiness as a future extension: context features, message arms, rewards, simulated log, and future OPE.
-7. Close with What this is / what this is not.
+2. Show that the app is using real GDELT public news by default, with sample data only as fallback.
+3. Show the Overview metrics and executive summary.
+4. Show an issue spike and explain the `watch/test/ignore` flag.
+5. Open Narrative Radar and show the transparent keyword rules, tone, intensity, and top snippets.
+6. Show the generated Research Memo as the campaign research output.
+7. Briefly show Bandit Readiness as a future extension: context features, message arms, rewards, simulated log, and future OPE.
+8. Close with What this is / what this is not.
 
 ## Project Structure
 
@@ -138,6 +134,7 @@ README.md
 assets/README_screenshots_placeholder.md
 data/sample_articles.csv
 data/sample_bandit_log.csv
+data/gdelt_articles.csv
 src/classify_topics.py
 src/scoring.py
 src/generate_memo.py

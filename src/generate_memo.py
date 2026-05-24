@@ -49,7 +49,7 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
         f"**Window:** {previous_date} to {latest_date}",
         "",
         "## What Changed",
-        f"- The sample public-discourse set contains {len(df)} items across {df['classified_issue_area'].nunique()} issue areas.",
+        f"- The public-discourse set contains {len(df)} items across {df['classified_issue_area'].nunique()} issue areas.",
         f"- Highest-volume issue: {rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area']}.",
         f"- Highest-intensity issue: {rollup.sort_values('avg_intensity', ascending=False).iloc[0]['classified_issue_area']}.",
         "",
