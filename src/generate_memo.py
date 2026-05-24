@@ -46,23 +46,23 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
     lines = [
         "# Social Listening Research Memo",
         "",
-        f"**Window:** {previous_date} to {latest_date}",
+        f"**Stories analyzed:** {previous_date} to {latest_date}",
         "",
-        "## What Changed",
+        "## Biggest shifts in discussion",
         f"- The public-discourse set contains {len(df)} items across {df['classified_issue_area'].nunique()} issue areas.",
         f"- Highest-volume issue: {rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area']}.",
-        f"- Highest-intensity issue: {rollup.sort_values('avg_intensity', ascending=False).iloc[0]['classified_issue_area']}.",
+        f"- Strongest attention-and-tone signal: {rollup.sort_values('avg_intensity', ascending=False).iloc[0]['classified_issue_area']}.",
         "",
-        "## Issues Spiking",
+        "## Issues with rising attention",
     ]
 
     if test_issues.empty and watch_issues.empty:
-        lines.append("- No issue crosses the watch threshold in this sample window.")
+        lines.append("- No issue crosses the watch threshold in this set of stories.")
     else:
         for _, row in pd.concat([test_issues, watch_issues]).iterrows():
             lines.append(
                 f"- **{row['classified_issue_area']}**: {row['radar_flag']} "
-                f"(spike score {row['spike_score']:.2f}, avg intensity {row['avg_intensity']:.1f})."
+                f"({_baseline_phrase(row['spike_score'])}, attention-and-tone signal {row['avg_intensity']:.1f})."
             )
 
     lines.extend(["", "## Likely Voter Concern Behind The Discourse"])
@@ -88,9 +88,15 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
             "## Limitations",
             "- Public data only; no private voter data is used.",
             "- Keyword classification is transparent but approximate.",
-            "- Sentiment and intensity scores are simple research triage signals, not truth labels.",
+            "- Sentiment and attention-and-tone scores are simple research triage signals, not truth labels.",
             "- The bandit log is simulated and intended only to show future adaptive experimentation design.",
             "- Production use would require legal/privacy review, platform compliance, and experimental safeguards.",
         ]
     )
     return "\n".join(lines)
+
+
+def _baseline_phrase(score: float) -> str:
+    if score <= 0:
+        return "near recent baseline"
+    return f"discussion is about {score * 100:.0f}% above recent baseline"

@@ -77,13 +77,13 @@ def generate_weekly_issue_brief(df: pd.DataFrame, rollup: pd.DataFrame) -> tuple
         recommendation = recommendation_for(issue_row["radar_flag"], spike, sentiment)
         interpretation = (
             f"{issue} is drawing {int(issue_row['mentions'])} mentions, with strongest signal in "
-            f"{top_geographies} and a {issue_row['radar_flag']} radar status."
+            f"{top_geographies} and a {issue_row['radar_flag']} research priority."
         )
         row = {
             "issue_area": issue,
             "current_volume": int(issue_row["mentions"]),
             "sentiment_tone": _tone_label(sentiment),
-            "spike_score": round(spike, 2),
+            "change_vs_recent_baseline": round(spike, 2),
             "top_geographies": top_geographies,
             "top_sources": top_sources,
             "interpretation": interpretation,
@@ -95,7 +95,7 @@ def generate_weekly_issue_brief(df: pd.DataFrame, rollup: pd.DataFrame) -> tuple
                 f"## {issue}",
                 f"- Current volume: {row['current_volume']}",
                 f"- Sentiment/tone: {row['sentiment_tone']}",
-                f"- Spike score: {row['spike_score']}",
+                f"- Change vs recent baseline: {_baseline_phrase(row['change_vs_recent_baseline'])}",
                 f"- Top geographies: {top_geographies}",
                 f"- Top sources: {top_sources}",
                 f"- Interpretation: {interpretation}",
@@ -137,7 +137,7 @@ def generate_geography_watchlist(df: pd.DataFrame) -> pd.DataFrame:
     watchlist["why_it_matters"] = watchlist.apply(
         lambda row: (
             f"{row['classified_issue_area']} is the leading signal here, with "
-            f"{int(row['mentions'])} mentions and spike score {row['spike_score']:.2f}."
+            f"{int(row['mentions'])} stories and discussion about {row['spike_score']:.2f}x above recent baseline."
         ),
         axis=1,
     )
@@ -150,17 +150,18 @@ def generate_geography_watchlist(df: pd.DataFrame) -> pd.DataFrame:
     watchlist = watchlist.rename(columns={"classified_issue_area": "top_issue"})
     watchlist["avg_sentiment"] = watchlist["avg_sentiment"].round(2)
     watchlist["spike_score"] = watchlist["spike_score"].round(2)
+    watchlist = watchlist.rename(columns={"spike_score": "change_vs_recent_baseline"})
     return watchlist[
         [
             "geography",
             "top_issue",
             "mentions",
             "avg_sentiment",
-            "spike_score",
+            "change_vs_recent_baseline",
             "why_it_matters",
             "recommended_next_step",
         ]
-    ].sort_values(["mentions", "spike_score"], ascending=False)
+    ].sort_values(["mentions", "change_vs_recent_baseline"], ascending=False)
 
 
 def generate_message_hypothesis_bank(df: pd.DataFrame, max_pairs: int = 12) -> pd.DataFrame:
@@ -252,3 +253,9 @@ def _tone_label(sentiment: float) -> str:
     if sentiment >= 0.25:
         return f"constructive ({sentiment:.2f})"
     return f"mixed ({sentiment:.2f})"
+
+
+def _baseline_phrase(score: float) -> str:
+    if score <= 0:
+        return "near recent baseline"
+    return f"about {score * 100:.0f}% above recent baseline"

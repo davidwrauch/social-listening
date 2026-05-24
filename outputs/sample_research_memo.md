@@ -1,18 +1,18 @@
 # Social Listening Research Memo
 
-**Window:** 2026-05-09 to 2026-05-23
+**Stories analyzed:** 2026-05-09 to 2026-05-23
 
-## What Changed
+## Biggest shifts in discussion
 - The public-discourse set contains 1247 items across 5 issue areas.
 - Highest-volume issue: affordability / cost of living.
-- Highest-intensity issue: corruption / competence / trust.
+- Strongest attention-and-tone signal: corruption / competence / trust.
 
-## Issues Spiking
-- **corruption / competence / trust**: test (spike score 0.24, avg intensity 5.1).
-- **AI / tech jobs**: watch (spike score 0.09, avg intensity 3.6).
-- **immigration / public safety**: watch (spike score 0.05, avg intensity 3.6).
-- **housing / rent**: watch (spike score 0.00, avg intensity 3.9).
-- **affordability / cost of living**: watch (spike score 0.00, avg intensity 3.6).
+## Issues with rising attention
+- **corruption / competence / trust**: test (discussion is about 24% above recent baseline, attention-and-tone signal 5.1).
+- **AI / tech jobs**: watch (discussion is about 9% above recent baseline, attention-and-tone signal 3.6).
+- **immigration / public safety**: watch (discussion is about 5% above recent baseline, attention-and-tone signal 3.6).
+- **housing / rent**: watch (near recent baseline, attention-and-tone signal 3.9).
+- **affordability / cost of living**: watch (near recent baseline, attention-and-tone signal 3.6).
 
 ## Likely Voter Concern Behind The Discourse
 - **AI / tech jobs:** workers asking whether economic change will create opportunity or displacement.
@@ -41,6 +41,6 @@
 ## Limitations
 - Public data only; no private voter data is used.
 - Keyword classification is transparent but approximate.
-- Sentiment and intensity scores are simple research triage signals, not truth labels.
+- Sentiment and attention-and-tone scores are simple research triage signals, not truth labels.
 - The bandit log is simulated and intended only to show future adaptive experimentation design.
 - Production use would require legal/privacy review, platform compliance, and experimental safeguards.
