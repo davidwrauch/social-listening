@@ -14,6 +14,7 @@ from src.bandit_simulator import (
 from src.classify_topics import classify_records, geography_counts, summarize_keyword_rules
 from src.collect_gdelt import fetch_latest_gdelt_articles
 from src.generate_memo import generate_research_memo
+from src.research_outputs import export_research_outputs
 from src.scoring import add_scores, add_spike_scores, daily_issue_volume, issue_rollup
 
 ROOT = Path(__file__).parent
@@ -355,6 +356,52 @@ def render_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.markdown(memo)
 
 
+def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
+    st.subheader("Research Outputs")
+    st.write(
+        "Human-readable campaign research artifacts generated from the current narrative signal set. "
+        "These are the immediate strategist-facing outputs of the prototype."
+    )
+    outputs = export_research_outputs(df, rollup, ROOT / "outputs")
+    paths = outputs["paths"]
+
+    st.write("**Weekly Issue Brief**")
+    st.dataframe(outputs["weekly_issue_brief_table"], hide_index=True, width="stretch")
+    st.download_button(
+        "Download weekly_issue_brief.md",
+        data=Path(paths["weekly_issue_brief"]).read_text(encoding="utf-8"),
+        file_name="weekly_issue_brief.md",
+        mime="text/markdown",
+    )
+
+    st.write("**County / Geography Watchlist**")
+    st.dataframe(outputs["geography_watchlist"], hide_index=True, width="stretch")
+    st.download_button(
+        "Download geography_watchlist.csv",
+        data=outputs["geography_watchlist"].to_csv(index=False),
+        file_name="geography_watchlist.csv",
+        mime="text/csv",
+    )
+
+    st.write("**Message Hypothesis Bank**")
+    st.dataframe(outputs["message_hypothesis_bank"], hide_index=True, width="stretch")
+    st.download_button(
+        "Download message_hypothesis_bank.csv",
+        data=outputs["message_hypothesis_bank"].to_csv(index=False),
+        file_name="message_hypothesis_bank.csv",
+        mime="text/csv",
+    )
+
+    st.write("**Polling / Focus Group Questions**")
+    st.markdown(outputs["research_questions_md"])
+    st.download_button(
+        "Download research_questions.md",
+        data=Path(paths["research_questions"]).read_text(encoding="utf-8"),
+        file_name="research_questions.md",
+        mime="text/markdown",
+    )
+
+
 def render_bandit_readiness(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Bandit Readiness: Future Extension")
     st.write(
@@ -546,11 +593,12 @@ def main() -> None:
     filtered_rollup = issue_rollup(filtered) if not filtered.empty else rollup
 
     render_header(filtered, filtered_rollup, data_label)
-    tab_overview, tab_radar, tab_memo, tab_bandit, tab_what_is, tab_ethics = st.tabs(
+    tab_overview, tab_radar, tab_memo, tab_outputs, tab_bandit, tab_what_is, tab_ethics = st.tabs(
         [
             "Overview",
             "Narrative Radar",
             "Research Memo",
+            "Research Outputs",
             "Future Experimentation",
             "What this is",
             "Ethics",
@@ -562,6 +610,8 @@ def main() -> None:
         render_narrative_radar(filtered, filtered_rollup)
     with tab_memo:
         render_memo(filtered, filtered_rollup)
+    with tab_outputs:
+        render_research_outputs(filtered, filtered_rollup)
     with tab_bandit:
         render_bandit_readiness(filtered, filtered_rollup)
     with tab_what_is:

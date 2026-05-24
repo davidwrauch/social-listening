@@ -2,7 +2,7 @@
 
 **Narrative intelligence prototype for campaign research**
 
-Social Listening is a lightweight narrative intelligence prototype for campaign research. It shows how real public discourse can be transformed into issue trends, emerging narratives, message hypotheses, and research memos.
+Social Listening is a lightweight narrative intelligence prototype for campaign research. It shows how real public discourse can be transformed into issue trends, emerging narratives, message hypotheses, research memos, and strategist-ready research artifacts.
 
 By default, the app uses real public news data from the **GDELT 2.1 DOC API**. GDELT requires no API key. Sample data is included only as a fallback/demo mode so the app remains usable if the network is unavailable.
 
@@ -16,7 +16,7 @@ Campaign research teams need a fast, explainable way to turn messy public conver
 - monitor narrative intensity and spikes
 - synthesize likely concerns behind the discourse
 - generate message hypotheses for human review
-- produce a short research memo
+- produce campaign research artifacts a strategist can use immediately
 - optionally structure outputs for future adaptive experimentation
 
 No private voter data is used. No social media scraping is required. Reddit, X, and other platform-specific sources could be future extensions only if collected through compliant APIs and reviewed safeguards.
@@ -28,8 +28,8 @@ flowchart LR
     A["Public discourse / GDELT news data"] --> B["Issue classification"]
     B --> C["Tone and spike scoring"]
     C --> D["Narrative synthesis"]
-    D --> E["Research memo"]
-    E --> F["Message hypotheses"]
+    D --> E["Human research outputs"]
+    E --> F["Research memo + message hypotheses"]
     F --> G["Optional bandit-ready structured outputs"]
 ```
 
@@ -50,8 +50,27 @@ The collector lives in `src/collect_gdelt.py` and queries public English-languag
 - **Overview:** executive summary, issue volume by day, issue mix, tone by issue, and top New York geographies.
 - **Narrative Radar:** transparent keyword classification, tone scoring, narrative intensity, spike score, and `watch/test/ignore` flags.
 - **Research Memo:** campaign research synthesis with what changed, likely concerns, message hypotheses, next tests, and limitations.
+- **Research Outputs:** weekly issue brief, geography watchlist, message hypothesis bank, and polling/focus group questions with downloadable files.
 - **Future Experimentation:** a lightweight Bandit Readiness section with context features, message arms, reward definitions, simulated experiment logs, and off-policy evaluation as future work.
 - **What this is / what this is not:** clear boundaries around public data, no private voter data, no microtargeting, and no measured persuasion claims.
+
+## Two Output Layers
+
+The immediate value is human-readable campaign research synthesis:
+
+- `outputs/weekly_issue_brief.md`
+- `outputs/geography_watchlist.csv`
+- `outputs/message_hypothesis_bank.csv`
+- `outputs/research_questions.md`
+- `outputs/sample_research_memo.md`
+
+The secondary layer is machine-readable scaffolding for future experimentation:
+
+- context features
+- message arms
+- reward definitions
+- simulated experiment log
+- off-policy evaluation framing
 
 ## Core Issue Areas
 
@@ -63,7 +82,7 @@ The collector lives in `src/collect_gdelt.py` and queries public English-languag
 
 ## Bandit Readiness As A Future Extension
 
-This project is not a contextual bandit project. The bandit-ready layer is intentionally small and downstream. It exists to show how narrative intelligence outputs could later become structured experimentation inputs:
+This project is not a contextual bandit project. The bandit-ready layer is intentionally small and downstream from the human research outputs. It exists to show how narrative intelligence outputs could later become structured experimentation inputs:
 
 - context features
 - message arms
@@ -120,9 +139,10 @@ Then open the local Streamlit URL. In the sidebar, keep **Real GDELT data** sele
 3. Show the Overview metrics and executive summary.
 4. Show an issue spike and explain the `watch/test/ignore` flag.
 5. Open Narrative Radar and show the transparent keyword rules, tone, intensity, and top snippets.
-6. Show the generated Research Memo as the campaign research output.
-7. Briefly show Bandit Readiness as a future extension: context features, message arms, rewards, simulated log, and future OPE.
-8. Close with What this is / what this is not.
+6. Show the generated Research Memo as a concise campaign research synthesis.
+7. Open Research Outputs and show the weekly issue brief, geography watchlist, message hypothesis bank, and research questions.
+8. Briefly show Bandit Readiness as a future extension: context features, message arms, rewards, simulated log, and future OPE.
+9. Close with What this is / what this is not.
 
 ## Project Structure
 
@@ -141,4 +161,8 @@ src/generate_memo.py
 src/bandit_simulator.py
 src/collect_gdelt.py
 outputs/sample_research_memo.md
+outputs/weekly_issue_brief.md
+outputs/geography_watchlist.csv
+outputs/message_hypothesis_bank.csv
+outputs/research_questions.md
 ```

@@ -1,0 +1,9 @@
+geography,top_issue,mentions,avg_sentiment,spike_score,why_it_matters,recommended_next_step
+Albany,AI / tech jobs,1,0.25,3.0,"AI / tech jobs is the leading signal here, with 1 mentions and spike score 3.00.",test message hypothesis
+Brooklyn,AI / tech jobs,1,0.25,3.0,"AI / tech jobs is the leading signal here, with 1 mentions and spike score 3.00.",test message hypothesis
+NYC,AI / tech jobs,1,0.25,3.0,"AI / tech jobs is the leading signal here, with 1 mentions and spike score 3.00.",test message hypothesis
+Bronx,affordability / cost of living,1,0.0,2.0,"affordability / cost of living is the leading signal here, with 1 mentions and spike score 2.00.",test message hypothesis
+Buffalo,immigration / public safety,1,-0.25,2.0,"immigration / public safety is the leading signal here, with 1 mentions and spike score 2.00.",test message hypothesis
+New York,affordability / cost of living,1,0.0,2.0,"affordability / cost of living is the leading signal here, with 1 mentions and spike score 2.00.",test message hypothesis
+Long Island,corruption / competence / trust,1,0.0,1.0,"corruption / competence / trust is the leading signal here, with 1 mentions and spike score 1.00.",test message hypothesis
+Queens,corruption / competence / trust,1,0.0,1.0,"corruption / competence / trust is the leading signal here, with 1 mentions and spike score 1.00.",test message hypothesis
