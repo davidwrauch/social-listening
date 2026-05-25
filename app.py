@@ -83,7 +83,7 @@ def filter_recent(df: pd.DataFrame, days_back: int) -> pd.DataFrame:
     latest = data["date"].max()
     if pd.isna(latest):
         return data
-    cutoff = latest - pd.Timedelta(days=days_back)
+    cutoff = latest.normalize() - pd.Timedelta(days=max(days_back - 1, 0))
     return data[data["date"] >= cutoff].copy()
 
 
@@ -448,29 +448,6 @@ def render_app_title() -> None:
     st.caption("Narrative intelligence prototype for campaign research.")
 
 
-def render_onboarding() -> None:
-    if st.session_state.get("dashboard_opened", False):
-        return
-    st.markdown(
-        """
-        <div class="briefing-banner">
-            <div class="eyebrow">Briefing system for public discourse</div>
-            <div class="briefing-title">See which stories are rising, where they are moving, and what researchers should investigate next.</div>
-            <div class="briefing-copy">
-            Social listening turns public news and public online discussion into a calmer research signal for
-            campaign teams. This feed combines GDELT public news and public Reddit posts to monitor how issue
-            attention changes across New York regions. It supports human strategists and future adaptive
-            experimentation systems, but it is not voter microtargeting.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    if st.button("Open dashboard", type="primary"):
-        st.session_state["dashboard_opened"] = True
-        st.rerun()
-
-
 def display_geography(row: pd.Series) -> str:
     return display_region(row)
 
@@ -715,10 +692,6 @@ def render_story_table(df: pd.DataFrame) -> None:
 
 
 def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
-    render_onboarding()
-    st.subheader("Discussion briefing")
-    st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
-
     st.session_state.setdefault("overview_regions", [])
     selected_geos = st.multiselect("NY regions", options=NY_REGIONS, key="overview_regions")
 
@@ -967,7 +940,7 @@ def main() -> None:
 
     with st.sidebar:
         st.header("Controls")
-        st.caption("Choose the discussion feed and time period.")
+        st.caption("Choose the public-source discussion feed.")
         data_source = st.radio(
             "Data source",
             options=[
@@ -980,12 +953,7 @@ def main() -> None:
             "changes across New York regions. In a production environment, additional sources like polling, TV "
             "transcripts, campaign responses, and local media monitoring could be added."
         )
-        date_window = st.selectbox(
-            "Stories analyzed",
-            options=["Last 7 days", "Last 14 days", "Last 30 days"],
-            index=1,
-        )
-        days_back = int(date_window.split()[1])
+        days_back = 14
 
         if data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
             try:
@@ -1005,9 +973,6 @@ def main() -> None:
         else:
             st.warning("Public-source data files were not found.")
             df = pd.DataFrame()
-
-        st.divider()
-        st.caption("GDELT and Reddit require internet access, but no API key for this basic public-source feed.")
 
     if df.empty:
         st.title("Social Listening")
