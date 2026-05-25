@@ -19,13 +19,11 @@ from src.generate_memo import generate_research_memo
 from src.regions import NY_REGIONS, normalize_region_label
 from src.research_outputs import export_research_outputs
 from src.scoring import add_scores, add_spike_scores, daily_issue_volume, issue_rollup
-from src.synthetic_corpus import generate_operational_demo_corpus
 
 ROOT = Path(__file__).parent
 ARTICLE_PATH = ROOT / "data" / "sample_articles.csv"
 GDELT_PATH = ROOT / "data" / "gdelt_articles.csv"
 REDDIT_PATH = ROOT / "data" / "reddit_posts.csv"
-OPERATIONAL_PATH = ROOT / "data" / "operational_demo_corpus.csv"
 BANDIT_LOG_PATH = ROOT / "data" / "sample_bandit_log.csv"
 MEMO_PATH = ROOT / "outputs" / "sample_research_memo.md"
 
@@ -50,13 +48,6 @@ def prepare_articles(raw: pd.DataFrame) -> pd.DataFrame:
 @st.cache_data
 def load_sample_articles() -> pd.DataFrame:
     return prepare_articles(pd.read_csv(ARTICLE_PATH))
-
-
-@st.cache_data
-def load_operational_articles(path: str) -> pd.DataFrame:
-    if not Path(path).exists():
-        generate_operational_demo_corpus(output_path=path)
-    return prepare_articles(pd.read_csv(path))
 
 
 @st.cache_data
@@ -469,9 +460,9 @@ def render_onboarding() -> None:
             <div class="briefing-title">See which stories are rising, where they are moving, and what researchers should investigate next.</div>
             <div class="briefing-copy">
             Social listening turns public news and public online discussion into a calmer research signal for
-            campaign teams. This prototype uses extrapolated New York patterns to simulate a statewide discussion
-            feed, while also supporting live GDELT news and public Reddit posts. It supports human strategists and
-            future adaptive experimentation systems, but it is not voter microtargeting.
+            campaign teams. This feed combines GDELT public news and public Reddit posts to monitor how issue
+            attention changes across New York regions. It supports human strategists and future adaptive
+            experimentation systems, but it is not voter microtargeting.
             </div>
         </div>
         """,
@@ -559,11 +550,19 @@ def issue_daily_series(
     return daily
 
 
-def issue_tone_color(issue_df: pd.DataFrame) -> str:
+def issue_tone_color(issue_df: pd.DataFrame, tone_reference: pd.Series | None = None) -> str:
     score = float(issue_df["sentiment_score"].mean()) if not issue_df.empty else 0.0
-    if score <= -0.10:
+    if tone_reference is not None and tone_reference.dropna().nunique() >= 3:
+        low = float(tone_reference.quantile(0.34))
+        high = float(tone_reference.quantile(0.67))
+        if score <= low:
+            return "#c75f5f"
+        if score >= high:
+            return "#3d9a6a"
+        return "#d8a923"
+    if score <= -0.06:
         return "#c75f5f"
-    if score >= 0.10:
+    if score >= 0.06:
         return "#3d9a6a"
     return "#d8a923"
 
@@ -574,6 +573,7 @@ def issue_mini_chart(
     selected_issue: str | None = None,
     start_date: pd.Timestamp | None = None,
     end_date: pd.Timestamp | None = None,
+    tone_reference: pd.Series | None = None,
 ) -> alt.Chart:
     issue_df = df[df["classified_issue_area"] == issue]
     chart_data = issue_daily_series(issue_df, start_date, end_date)
@@ -585,7 +585,7 @@ def issue_mini_chart(
     base = alt.Chart(chart_data).encode(
         x=alt.X("date:T", title=None, axis=alt.Axis(format="%b %d", labelAngle=-35, tickCount=6, grid=False)),
         y=alt.Y("stories:Q", title="Stories", scale=alt.Scale(domain=[0, y_max]), axis=alt.Axis(tickCount=3, grid=True)),
-        color=alt.value(issue_tone_color(issue_df)),
+        color=alt.value(issue_tone_color(issue_df, tone_reference)),
         size=alt.Size("stories:Q", scale=alt.Scale(domain=[0, max(1, int(chart_data["stories"].max()))], range=[2.5, 7.5]), legend=None),
         tooltip=[
             alt.Tooltip("date:T", title="Date"),
@@ -649,6 +649,7 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
             ],
         )
         .properties(height=250)
+        .configure_axisY(titlePadding=14, labelPadding=6)
     )
 
 
@@ -736,9 +737,11 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     chart_dates = pd.to_datetime(base["date"], errors="coerce").dropna()
     chart_start = chart_dates.min().normalize()
     chart_end = chart_dates.max().normalize()
+    tone_reference = base.groupby("classified_issue_area")["sentiment_score"].mean()
 
     st.write("This shows what share of daily discussion each issue is taking up.")
     st.altair_chart(topic_share_chart(base, chart_start, chart_end), width="stretch")
+    st.markdown("### See Social Trends By Topic")
     st.caption("Click an issue name to filter stories. Use Clear filters to return to the full view.")
     st.markdown(
         """
@@ -771,7 +774,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
             continue
         chart_key = f"issue_chart_{issue_key(issue)}_{st.session_state.get('overview_chart_reset', 0)}"
         chart_state = st.altair_chart(
-            issue_mini_chart(base, issue, prior_issue, chart_start, chart_end),
+            issue_mini_chart(base, issue, prior_issue, chart_start, chart_end, tone_reference),
             width="stretch",
             key=chart_key,
             on_select="rerun",
@@ -824,13 +827,15 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     )
     outputs = export_research_outputs(df, rollup, ROOT / "outputs")
     paths = outputs["paths"]
+    weekly_table = outputs["weekly_issue_brief_table"].dropna(how="all").reset_index(drop=True)
+    weekly_height = max(120, min(320, 44 + 38 * len(weekly_table)))
 
     st.write("**Weekly issue brief**")
     st.dataframe(
-        outputs["weekly_issue_brief_table"],
+        weekly_table,
         hide_index=True,
         width="stretch",
-        height=360,
+        height=weekly_height,
         column_config={
             "interpretation": st.column_config.TextColumn("interpretation", width="large"),
             "top_sources": st.column_config.TextColumn("top sources", width="medium"),
@@ -920,7 +925,7 @@ def render_for_experimentation(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     for idx, signal in enumerate(REWARD_SIGNALS):
         reward_cols[idx % 3].markdown(f"- {signal}")
     st.caption(
-        "Rewards are research and engagement signals. This demo does not claim measured persuasion effects."
+        "Rewards are research and engagement signals. This prototype does not claim measured persuasion effects."
     )
 
     structured_input = {
@@ -942,11 +947,10 @@ def render_about() -> None:
         which stories should become polling, focus group, or message-testing questions.
 
         **Methodology:** public stories and posts are classified with transparent keyword rules, scored for tone,
-        grouped into six New York regions, and converted into human research outputs. The default simulated
-        statewide discussion feed shows the workflow at monitoring scale. Live GDELT news and public Reddit posts
-        can be fetched as reproducible public-source inputs.
+        grouped into six New York regions, and converted into human research outputs. GDELT news and public Reddit
+        posts can be fetched as reproducible public-source inputs.
 
-        **Data sources:** GDELT public news, Reddit public posts, and a simulated statewide discussion feed.
+        **Data sources:** GDELT public news and Reddit public posts.
         Real campaign systems would usually combine public news, public discussion, creator/media monitoring,
         polling, field notes, and campaign-owned engagement data.
 
@@ -962,7 +966,6 @@ def render_about() -> None:
 
 def main() -> None:
     inject_css()
-    render_floating_clear_filters()
 
     with st.sidebar:
         st.header("Controls")
@@ -970,20 +973,14 @@ def main() -> None:
         data_source = st.radio(
             "Data source",
             options=[
-                "Simulated statewide discussion feed",
                 "Real public news and Reddit discussion",
             ],
             index=0,
         )
         st.caption(
-            "This prototype combines open public news signals with public online discussion signals. "
-            "The simulated statewide feed demonstrates how the same workflow behaves at campaign-monitoring scale. "
-            "GDELT and Reddit are included because they are reproducible public sources, not because they represent "
-            "the full universe of voter opinion."
-        )
-        st.caption(
-            "Real campaign systems would usually combine public news, public discussion, creator/media monitoring, "
-            "polling, field notes, and campaign-owned engagement data."
+            "This feed combines public news coverage and public Reddit discussion to monitor how issue attention "
+            "changes across New York regions. In a production environment, additional sources like polling, TV "
+            "transcripts, campaign responses, and local media monitoring could be added."
         )
         date_window = st.selectbox(
             "Stories analyzed",
@@ -1006,7 +1003,7 @@ def main() -> None:
                     st.rerun()
                 except Exception as exc:
                     gdelt_error = str(exc)
-                    st.warning(f"GDELT fetch failed. The app can keep using the simulated statewide feed. {gdelt_error}")
+                    st.warning(f"GDELT fetch failed. Existing public-source data will remain available if cached. {gdelt_error}")
 
         if data_source == "Real public news and Reddit discussion":
             if not REDDIT_PATH.exists():
@@ -1020,11 +1017,9 @@ def main() -> None:
                     st.rerun()
                 except Exception as exc:
                     reddit_error = str(exc)
-                    st.warning(f"Reddit fetch failed or was rate-limited. The app can keep using the simulated statewide feed. {reddit_error}")
+                    st.warning(f"Reddit fetch failed or was rate-limited. Existing public-source data will remain available if cached. {reddit_error}")
 
-        if data_source == "Simulated statewide discussion feed":
-            df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
-        elif data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
+        if data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
             try:
                 df = filter_recent(
                     load_combined_real_sources(
@@ -1034,42 +1029,46 @@ def main() -> None:
                     days_back,
                 )
                 if df.empty:
-                    st.warning("No real-source rows in the selected time period. Showing the simulated statewide feed.")
-                    df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+                    st.warning("No public-source rows are available in the selected time period. Fetch the latest GDELT news or Reddit posts.")
+                    df = pd.DataFrame()
             except Exception as exc:
-                st.warning(f"Could not load real-source caches. Showing the simulated statewide feed. {exc}")
-                df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+                st.warning(f"Could not load real-source caches. Fetch the latest GDELT news or Reddit posts. {exc}")
+                df = pd.DataFrame()
         else:
-            if data_source != "Simulated statewide discussion feed" and gdelt_error is None and reddit_error is None:
-                st.warning("Real public-source data has not been fetched yet. Showing the simulated statewide feed.")
-            df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+            if gdelt_error is None and reddit_error is None:
+                st.warning("Public-source data has not been fetched yet. Use the fetch buttons above to populate the briefing.")
+            df = pd.DataFrame()
 
         st.divider()
-        st.caption("GDELT and Reddit require internet access, but no API key for this basic demo.")
+        st.caption("GDELT and Reddit require internet access, but no API key for this basic public-source feed.")
+
+    if df.empty:
+        st.title("Social Listening")
+        st.info("No public-source rows are available for the selected date range. Fetch GDELT news or Reddit posts from the sidebar.")
+        return
 
     rollup = issue_rollup(df)
     filtered = df.copy()
     filtered_rollup = rollup
 
     render_app_title()
-    tab_overview, tab_memo, tab_outputs, tab_experimentation, tab_about = st.tabs(
-        [
-            "Overview",
-            "Research memo",
-            "Research outputs",
-            "For experimentation",
-            "About",
-        ]
+    section = st.radio(
+        "Section",
+        options=["Overview", "Research memo", "Research outputs", "For experimentation", "About"],
+        horizontal=True,
+        label_visibility="collapsed",
     )
-    with tab_overview:
+
+    if section == "Overview":
+        render_floating_clear_filters()
         render_overview(filtered, filtered_rollup)
-    with tab_memo:
+    elif section == "Research memo":
         render_memo(filtered, filtered_rollup)
-    with tab_outputs:
+    elif section == "Research outputs":
         render_research_outputs(filtered, filtered_rollup)
-    with tab_experimentation:
+    elif section == "For experimentation":
         render_for_experimentation(filtered, filtered_rollup)
-    with tab_about:
+    else:
         render_about()
 
 
