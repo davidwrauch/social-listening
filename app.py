@@ -13,8 +13,6 @@ from src.bandit_simulator import (
     generate_message_arms,
 )
 from src.classify_topics import classify_records
-from src.collect_gdelt import fetch_latest_gdelt_articles
-from src.collect_reddit import fetch_latest_reddit_posts
 from src.generate_memo import generate_research_memo
 from src.regions import NY_REGIONS, normalize_region_label
 from src.research_outputs import export_research_outputs
@@ -989,36 +987,6 @@ def main() -> None:
         )
         days_back = int(date_window.split()[1])
 
-        gdelt_error = None
-        reddit_error = None
-        if data_source == "Real public news and Reddit discussion":
-            if not GDELT_PATH.exists():
-                st.info("No local GDELT cache yet.")
-            if st.button("Fetch latest GDELT news", type="primary"):
-                try:
-                    fetch_latest_gdelt_articles(days_back=days_back, output_path=GDELT_PATH)
-                    load_gdelt_articles.clear()
-                    load_combined_real_sources.clear()
-                    st.success("Fetched latest GDELT articles.")
-                    st.rerun()
-                except Exception as exc:
-                    gdelt_error = str(exc)
-                    st.warning(f"GDELT fetch failed. Existing public-source data will remain available if cached. {gdelt_error}")
-
-        if data_source == "Real public news and Reddit discussion":
-            if not REDDIT_PATH.exists():
-                st.info("No local Reddit cache yet.")
-            if st.button("Fetch latest Reddit posts"):
-                try:
-                    fetch_latest_reddit_posts(days_back=days_back, output_path=REDDIT_PATH)
-                    load_reddit_posts.clear()
-                    load_combined_real_sources.clear()
-                    st.success("Fetched latest public Reddit posts.")
-                    st.rerun()
-                except Exception as exc:
-                    reddit_error = str(exc)
-                    st.warning(f"Reddit fetch failed or was rate-limited. Existing public-source data will remain available if cached. {reddit_error}")
-
         if data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
             try:
                 df = filter_recent(
@@ -1029,14 +997,13 @@ def main() -> None:
                     days_back,
                 )
                 if df.empty:
-                    st.warning("No public-source rows are available in the selected time period. Fetch the latest GDELT news or Reddit posts.")
+                    st.warning("No public-source rows are available in the selected time period.")
                     df = pd.DataFrame()
             except Exception as exc:
-                st.warning(f"Could not load real-source caches. Fetch the latest GDELT news or Reddit posts. {exc}")
+                st.warning(f"Could not load real-source caches. {exc}")
                 df = pd.DataFrame()
         else:
-            if gdelt_error is None and reddit_error is None:
-                st.warning("Public-source data has not been fetched yet. Use the fetch buttons above to populate the briefing.")
+            st.warning("Public-source data files were not found.")
             df = pd.DataFrame()
 
         st.divider()
@@ -1044,7 +1011,7 @@ def main() -> None:
 
     if df.empty:
         st.title("Social Listening")
-        st.info("No public-source rows are available for the selected date range. Fetch GDELT news or Reddit posts from the sidebar.")
+        st.info("No public-source rows are available for the selected date range.")
         return
 
     rollup = issue_rollup(df)
@@ -1052,23 +1019,25 @@ def main() -> None:
     filtered_rollup = rollup
 
     render_app_title()
-    section = st.radio(
-        "Section",
-        options=["Overview", "Research memo", "Research outputs", "For experimentation", "About"],
-        horizontal=True,
-        label_visibility="collapsed",
+    tab_overview, tab_memo, tab_outputs, tab_experimentation, tab_about = st.tabs(
+        [
+            "Overview",
+            "Research memo",
+            "Research outputs",
+            "For experimentation",
+            "About",
+        ]
     )
-
-    if section == "Overview":
+    with tab_overview:
         render_floating_clear_filters()
         render_overview(filtered, filtered_rollup)
-    elif section == "Research memo":
+    with tab_memo:
         render_memo(filtered, filtered_rollup)
-    elif section == "Research outputs":
+    with tab_outputs:
         render_research_outputs(filtered, filtered_rollup)
-    elif section == "For experimentation":
+    with tab_experimentation:
         render_for_experimentation(filtered, filtered_rollup)
-    else:
+    with tab_about:
         render_about()
 
 
