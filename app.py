@@ -330,6 +330,19 @@ def inject_css() -> None:
             border-radius: 999px;
             padding: 10px 16px;
         }
+        div[data-testid="stButton"] > button {
+            border-radius: 999px;
+            border: 1px solid rgba(17, 19, 24, 0.10);
+            background: rgba(255, 255, 255, 0.78);
+            box-shadow: 0 8px 24px rgba(17, 19, 24, 0.06);
+            color: #20242c;
+            font-weight: 650;
+            min-height: 40px;
+        }
+        div[data-testid="stButton"] > button:hover {
+            border-color: rgba(17, 19, 24, 0.18);
+            background: rgba(255, 255, 255, 0.94);
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -503,16 +516,25 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Discussion briefing")
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
-    controls = st.columns([1, 1])
-    selected_geos = controls[0].multiselect("Regions", options=NY_REGIONS, default=[])
-    selected_tones = controls[1].multiselect("Coverage tone", options=sorted(df["tone"].unique()), default=[])
+    st.session_state.setdefault("overview_regions", [])
+    st.session_state.setdefault("overview_tones", [])
+    controls = st.columns([0.8, 1.1, 1.1])
+    if controls[0].button("Show all issues", key="show_all_issues_button"):
+        st.session_state["selected_overview_issue"] = None
+        st.session_state["overview_regions"] = []
+        st.session_state["overview_tones"] = []
+        st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
+        st.rerun()
+    selected_geos = controls[1].multiselect("Regions", options=NY_REGIONS, key="overview_regions")
+    selected_tones = controls[2].multiselect("Coverage tone", options=sorted(df["tone"].unique()), key="overview_tones")
 
     base = filtered_for_overview(df, selected_geos, selected_tones)
     if base.empty:
         st.warning("No stories match the selected filters.")
         return
 
-    st.caption("Click issue names in the legend to isolate discussion trends.")
+    st.markdown("**Issue trends over time**")
+    st.caption("Click issue names in the legend to isolate trends.")
     prior_issue = st.session_state.get("selected_overview_issue")
     if prior_issue and prior_issue not in set(base["classified_issue_area"]):
         prior_issue = None
@@ -523,7 +545,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         chart_state = st.altair_chart(
             overview_chart(base),
             width="stretch",
-            key="overview_issue_chart",
+            key=f"overview_issue_chart_{st.session_state.get('overview_chart_reset', 0)}",
             on_select="rerun",
             selection_mode=["issue_select"],
         )
@@ -533,11 +555,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
             prior_issue = chart_issue
 
     if prior_issue:
-        col_focus, col_clear = st.columns([4, 1])
-        col_focus.caption(f"Showing stories for {prior_issue}. Line color reflects whether coverage is negative, mixed, or positive.")
-        if col_clear.button("Show all issues"):
-            st.session_state["selected_overview_issue"] = None
-            st.rerun()
+        st.caption(f"Showing stories for {prior_issue}. Line color reflects whether coverage is negative, mixed, or positive.")
     else:
         st.caption(
             "Change vs recent baseline compares current discussion volume with recent norms. "
