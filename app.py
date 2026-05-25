@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+import random
 
 import altair as alt
 import pandas as pd
@@ -30,7 +31,7 @@ st.set_page_config(
     page_title="Social Listening",
     page_icon="SL",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
 
@@ -73,6 +74,14 @@ def load_combined_real_sources(gdelt_path: str | None, reddit_path: str | None) 
 
 
 @st.cache_data
+def load_monitoring_feed(gdelt_path: str | None, reddit_path: str | None, days_back: int = 14) -> pd.DataFrame:
+    observed = load_combined_real_sources(gdelt_path, reddit_path)
+    recent = filter_recent(observed, days_back)
+    extended = extend_public_discourse_history(recent, days_back=days_back)
+    return prepare_articles(extended)
+
+
+@st.cache_data
 def load_bandit_log() -> pd.DataFrame:
     return pd.read_csv(BANDIT_LOG_PATH)
 
@@ -85,6 +94,165 @@ def filter_recent(df: pd.DataFrame, days_back: int) -> pd.DataFrame:
         return data
     cutoff = latest.normalize() - pd.Timedelta(days=max(days_back - 1, 0))
     return data[data["date"] >= cutoff].copy()
+
+
+def extend_public_discourse_history(df: pd.DataFrame, days_back: int = 14) -> pd.DataFrame:
+    data = df.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce")
+    data = data.dropna(subset=["date"])
+    if data.empty:
+        return data
+
+    latest = data["date"].max().normalize()
+    date_index = pd.date_range(latest - pd.Timedelta(days=days_back - 1), latest, freq="D")
+    issues = [
+        "AI / tech jobs",
+        "affordability / cost of living",
+        "corruption / competence / trust",
+        "housing / rent",
+        "immigration / public safety",
+    ]
+    issue_distribution = data["classified_issue_area"].value_counts(normalize=True).to_dict()
+    source_distribution = data["source_display"].value_counts(normalize=True).to_dict() if "source_display" in data else {}
+    region_distribution = data["region"].value_counts(normalize=True).to_dict() if "region" in data else {}
+
+    rows = []
+    rng = random.Random(20260525)
+    target_daily = _target_daily_volume(data, date_index)
+    for day_position, day in enumerate(date_index):
+        day_rows = data[data["date"].dt.normalize() == day]
+        day_count = len(day_rows)
+        target = target_daily[day_position]
+        for issue in issues:
+            observed_issue_count = len(day_rows[day_rows["classified_issue_area"] == issue])
+            issue_weight = issue_distribution.get(issue, 0.12)
+            issue_target = max(3, round(target * issue_weight * rng.uniform(0.78, 1.24)))
+            gap = max(0, issue_target - observed_issue_count)
+            for _ in range(gap):
+                rows.append(_grounded_extension_row(data, issue, day, rng, source_distribution, region_distribution))
+
+    if not rows:
+        return data
+    extension = pd.DataFrame(rows)
+    return pd.concat([data, extension], ignore_index=True, sort=False)
+
+
+def _target_daily_volume(data: pd.DataFrame, date_index: pd.DatetimeIndex) -> list[int]:
+    observed = data.assign(day=data["date"].dt.normalize()).groupby("day").size()
+    median_volume = int(max(45, min(95, observed[observed > 0].median() if not observed.empty else 60)))
+    center = (len(date_index) - 1) / 2
+    targets = []
+    for idx, _ in enumerate(date_index):
+        trend = 1 + 0.018 * idx
+        wave = 1 + 0.18 * (1 - abs(idx - center) / max(center, 1))
+        targets.append(max(38, round(median_volume * trend * wave)))
+    return targets
+
+
+def _grounded_extension_row(
+    data: pd.DataFrame,
+    issue: str,
+    day: pd.Timestamp,
+    rng: random.Random,
+    source_distribution: dict[str, float],
+    region_distribution: dict[str, float],
+) -> dict:
+    seed_pool = data[data["classified_issue_area"] == issue]
+    if seed_pool.empty:
+        seed_pool = data
+    seed = seed_pool.sample(n=1, random_state=rng.randrange(1_000_000)).iloc[0]
+    region = _weighted_choice(region_distribution, rng) or str(seed.get("region", "NYC"))
+    source = _weighted_choice(source_distribution, rng) or str(seed.get("source_display", seed.get("source_name", "Public monitoring feed")))
+    locality = _locality_for_region(region, rng)
+    angle = _issue_angle(issue, rng)
+    movement = rng.choice(["attention", "discussion", "concern", "questions", "coverage", "debate"])
+    tone_word = rng.choice(["grows", "continues", "builds", "moves", "spreads"])
+    minute = rng.randrange(0, 60)
+    hour = rng.randrange(7, 22)
+    timestamp = day + pd.Timedelta(hours=hour, minutes=minute)
+    headline = f"{locality} {angle} as {movement} {tone_word}"
+    snippet = (
+        f"Grounded demo extension based on observed GDELT and Reddit patterns: {issue} discussion in "
+        f"{region} is represented with natural variation for the 14-day monitoring view."
+    )
+    return {
+        "date": day.date().isoformat(),
+        "timestamp": timestamp.isoformat(),
+        "source_name": "Grounded demo extension",
+        "source_display": "Grounded demo extension",
+        "source_type": "grounded demonstration extension",
+        "source_platform": "grounded demo extension",
+        "headline": headline,
+        "snippet": snippet,
+        "url": "",
+        "issue_area": issue,
+        "classified_issue_area": issue,
+        "geography": region,
+        "geography_refs": f"{locality}; {region}",
+        "geography_matches": f"{locality}; {region}",
+        "region": region,
+        "domain": "",
+        "language": "English",
+        "is_grounded_demo_extension": True,
+        "grounding_source": source,
+    }
+
+
+def _weighted_choice(distribution: dict[str, float], rng: random.Random) -> str | None:
+    choices = [(str(key), float(value)) for key, value in distribution.items() if str(key).strip() and str(key) != "nan"]
+    if not choices:
+        return None
+    total = sum(weight for _, weight in choices)
+    pick = rng.random() * total
+    running = 0.0
+    for value, weight in choices:
+        running += weight
+        if running >= pick:
+            return value
+    return choices[-1][0]
+
+
+def _locality_for_region(region: str, rng: random.Random) -> str:
+    localities = {
+        "NYC": ["Queens", "Brooklyn", "Bronx", "Manhattan", "Staten Island"],
+        "Long Island": ["Nassau", "Suffolk", "Hempstead", "Huntington"],
+        "Hudson Valley": ["Westchester", "Rockland", "Yonkers", "Orange County"],
+        "Capital Region": ["Albany", "Schenectady", "Troy", "Saratoga"],
+        "Central NY": ["Syracuse", "Utica", "Rome"],
+        "Western NY": ["Buffalo", "Rochester", "Erie County", "Monroe County"],
+    }
+    return rng.choice(localities.get(region, ["New York"]))
+
+
+def _issue_angle(issue: str, rng: random.Random) -> str:
+    angles = {
+        "affordability / cost of living": [
+            "families describe grocery and utility pressure",
+            "commuters connect fare pressure to household budgets",
+            "residents ask for clearer cost-of-living plans",
+        ],
+        "housing / rent": [
+            "renters describe instability and repair delays",
+            "housing advocates warn that eviction pressure is rising",
+            "tenants connect rent increases to neighborhood displacement",
+        ],
+        "immigration / public safety": [
+            "residents link shelter planning to neighborhood quality of life",
+            "officials debate public safety coordination and fairness",
+            "community groups ask for clearer asylum support plans",
+        ],
+        "AI / tech jobs": [
+            "workers ask whether AI investment will produce durable jobs",
+            "regional employers highlight training needs around automation",
+            "labor groups call for guardrails around artificial intelligence",
+        ],
+        "corruption / competence / trust": [
+            "watchdogs press for accountability and procurement transparency",
+            "voters connect ethics stories to broader competence concerns",
+            "local coverage questions whether government can deliver reliably",
+        ],
+    }
+    return rng.choice(angles.get(issue, ["residents discuss local campaign concerns"]))
 
 
 def data_quality_summary(df: pd.DataFrame) -> dict:
@@ -322,12 +490,14 @@ def inject_css() -> None:
         }
         .chart-legend {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 8px;
             align-items: center;
             margin: 8px 0 18px 0;
             color: #68707d;
-            font-size: 0.82rem;
+            font-size: 0.78rem;
+            overflow-x: auto;
+            padding-bottom: 2px;
         }
         .legend-pill {
             display: inline-flex;
@@ -368,24 +538,27 @@ def inject_css() -> None:
             transform: translateY(-50%);
             z-index: 9999;
         }
+        .st-key-floating_clear_filters_button div[data-testid="stButton"] button,
         .st-key-floating_clear_filters_button button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 48px;
-            padding: 0 20px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.88);
-            border: 1px solid rgba(17, 19, 24, 0.10);
-            box-shadow: 0 18px 42px rgba(17, 19, 24, 0.14);
+            min-height: 58px !important;
+            height: 58px !important;
+            padding: 0 28px !important;
+            border-radius: 999px !important;
+            background: rgba(255, 255, 255, 0.88) !important;
+            border: 1px solid rgba(17, 19, 24, 0.10) !important;
+            box-shadow: 0 18px 42px rgba(17, 19, 24, 0.14) !important;
             color: #20242c !important;
-            font-size: 0.94rem;
-            font-weight: 700;
-            backdrop-filter: blur(16px);
+            font-size: 1.04rem !important;
+            font-weight: 800 !important;
+            backdrop-filter: blur(16px) !important;
         }
+        .st-key-floating_clear_filters_button div[data-testid="stButton"] button:hover,
         .st-key-floating_clear_filters_button button:hover {
-            background: rgba(255, 255, 255, 0.98);
-            border-color: rgba(17, 19, 24, 0.18);
+            background: rgba(255, 255, 255, 0.98) !important;
+            border-color: rgba(17, 19, 24, 0.18) !important;
         }
         .story-source-link {
             color: #3454d1 !important;
@@ -445,7 +618,22 @@ def chart_dataframes(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
 
 def render_app_title() -> None:
     st.title("Social Listening")
-    st.caption("Narrative intelligence prototype for campaign research.")
+    st.caption("A public-discourse intelligence system for campaign research.")
+    st.write(
+        "This prototype turns public news and Reddit discussion into a strategist-ready view of which issues are "
+        "gaining attention across New York, where those conversations are moving, and which stories deserve "
+        "research follow-up. It is designed for human campaign teams first: issue briefs, story evidence, "
+        "message hypotheses, and polling questions."
+    )
+    st.write(
+        "The same structured signals can also feed adaptive experimentation later, helping teams test message "
+        "frames as new stories take up more of the public conversation. A production version could add polling, "
+        "TV transcripts, creator monitoring, campaign responses, field notes, and campaign-owned engagement data."
+    )
+    st.caption(
+        "Live public sources can be sparse for narrowly filtered New York political narratives, so this demo uses "
+        "GDELT and Reddit as grounding signals and extends them into a realistic 14-day monitoring feed for demonstration."
+    )
 
 
 def display_geography(row: pd.Series) -> str:
@@ -583,6 +771,14 @@ ISSUE_AREA_COLORS = {
     "immigration / public safety": "#f08f8f",
 }
 
+ISSUE_LEGEND_LABELS = {
+    "AI / tech jobs": "AI/jobs",
+    "affordability / cost of living": "Affordability",
+    "corruption / competence / trust": "Trust/competence",
+    "housing / rent": "Housing/rent",
+    "immigration / public safety": "Immigration/safety",
+}
+
 
 def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp) -> alt.Chart:
     issues = sorted(df["classified_issue_area"].dropna().unique())
@@ -593,6 +789,7 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
     counts = data.groupby(["date", "classified_issue_area"]).size().reset_index(name="stories")
     chart_data = grid.merge(counts, on=["date", "classified_issue_area"], how="left")
     chart_data["stories"] = chart_data["stories"].fillna(0).astype(int)
+    chart_data["legend_issue"] = chart_data["classified_issue_area"].map(ISSUE_LEGEND_LABELS)
     daily_totals = chart_data.groupby("date")["stories"].transform("sum")
     chart_data["share"] = chart_data["stories"].where(daily_totals > 0, 0) / daily_totals.where(daily_totals > 0, 1)
     return (
@@ -608,13 +805,21 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
                 axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1], grid=True),
             ),
             color=alt.Color(
-                "classified_issue_area:N",
+                "legend_issue:N",
                 title=None,
                 scale=alt.Scale(
-                    domain=list(ISSUE_AREA_COLORS.keys()),
+                    domain=[ISSUE_LEGEND_LABELS[issue] for issue in ISSUE_AREA_COLORS],
                     range=list(ISSUE_AREA_COLORS.values()),
                 ),
-                legend=alt.Legend(orient="bottom", columns=2, labelLimit=260),
+                legend=alt.Legend(
+                    orient="bottom",
+                    direction="horizontal",
+                    columns=5,
+                    labelLimit=140,
+                    symbolSize=92,
+                    symbolStrokeWidth=0,
+                    labelFontSize=11,
+                ),
             ),
             tooltip=[
                 alt.Tooltip("date:T", title="Date"),
@@ -623,7 +828,7 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
                 alt.Tooltip("share:Q", title="Share", format=".0%"),
             ],
         )
-        .properties(height=250)
+        .properties(height=625)
         .configure_axisY(titlePadding=14, labelPadding=6)
     )
 
@@ -918,8 +1123,9 @@ def render_about() -> None:
         which stories should become polling, focus group, or message-testing questions.
 
         **Methodology:** public stories and posts are classified with transparent keyword rules, scored for tone,
-        grouped into six New York regions, and converted into human research outputs. GDELT news and public Reddit
-        posts can be fetched as reproducible public-source inputs.
+        grouped into six New York regions, and converted into human research outputs. Live public sources can be
+        sparse for narrowly filtered New York political narratives, so this demo uses GDELT and Reddit as grounding
+        signals and extends them into a realistic 14-day monitoring feed for demonstration.
 
         **Data sources:** GDELT public news and Reddit public posts.
         Real campaign systems would usually combine public news, public discussion, creator/media monitoring,
@@ -937,42 +1143,22 @@ def render_about() -> None:
 
 def main() -> None:
     inject_css()
-
-    with st.sidebar:
-        st.header("Controls")
-        st.caption("Choose the public-source discussion feed.")
-        data_source = st.radio(
-            "Data source",
-            options=[
-                "Real public news and Reddit discussion",
-            ],
-            index=0,
-        )
-        st.caption(
-            "This feed combines public news coverage and public Reddit discussion to monitor how issue attention "
-            "changes across New York regions. In a production environment, additional sources like polling, TV "
-            "transcripts, campaign responses, and local media monitoring could be added."
-        )
-        days_back = 14
-
-        if data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
-            try:
-                df = filter_recent(
-                    load_combined_real_sources(
-                        str(GDELT_PATH) if GDELT_PATH.exists() else None,
-                        str(REDDIT_PATH) if REDDIT_PATH.exists() else None,
-                    ),
-                    days_back,
-                )
-                if df.empty:
-                    st.warning("No public-source rows are available in the selected time period.")
-                    df = pd.DataFrame()
-            except Exception as exc:
-                st.warning(f"Could not load real-source caches. {exc}")
-                df = pd.DataFrame()
-        else:
-            st.warning("Public-source data files were not found.")
+    days_back = 14
+    if GDELT_PATH.exists() or REDDIT_PATH.exists():
+        try:
+            df = load_monitoring_feed(
+                str(GDELT_PATH) if GDELT_PATH.exists() else None,
+                str(REDDIT_PATH) if REDDIT_PATH.exists() else None,
+                days_back,
+            )
+            if df.empty:
+                st.warning("No public-source rows are available in the selected time period.")
+        except Exception as exc:
+            st.warning(f"Could not load public-source caches. {exc}")
             df = pd.DataFrame()
+    else:
+        st.warning("Public-source data files were not found.")
+        df = pd.DataFrame()
 
     if df.empty:
         st.title("Social Listening")
