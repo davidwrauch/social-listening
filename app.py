@@ -611,12 +611,20 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
     counts = data.groupby(["date", "classified_issue_area"]).size().reset_index(name="stories")
     chart_data = grid.merge(counts, on=["date", "classified_issue_area"], how="left")
     chart_data["stories"] = chart_data["stories"].fillna(0).astype(int)
+    daily_totals = chart_data.groupby("date")["stories"].transform("sum")
+    chart_data["share"] = chart_data["stories"].where(daily_totals > 0, 0) / daily_totals.where(daily_totals > 0, 1)
     return (
         alt.Chart(chart_data)
         .mark_area(opacity=0.78, interpolate="monotone")
         .encode(
             x=alt.X("date:T", title=None, axis=alt.Axis(format="%b %d", labelAngle=-35, tickCount=6, grid=False)),
-            y=alt.Y("stories:Q", title="Stories / discussion items", stack=True, axis=alt.Axis(tickCount=4)),
+            y=alt.Y(
+                "share:Q",
+                title="Share of stories",
+                stack="normalize",
+                scale=alt.Scale(domain=[0, 1]),
+                axis=alt.Axis(format="%", values=[0, 0.25, 0.5, 0.75, 1], grid=True),
+            ),
             color=alt.Color(
                 "classified_issue_area:N",
                 title=None,
@@ -630,6 +638,7 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
                 alt.Tooltip("date:T", title="Date"),
                 alt.Tooltip("classified_issue_area:N", title="Issue"),
                 alt.Tooltip("stories:Q", title="Stories"),
+                alt.Tooltip("share:Q", title="Share", format=".0%"),
             ],
         )
         .properties(height=250)
@@ -729,7 +738,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     chart_start = chart_dates.min().normalize()
     chart_end = chart_dates.max().normalize()
 
-    st.write("This shows which topics are taking up more of the discussion over time.")
+    st.write("This shows what share of daily discussion each issue is taking up.")
     st.altair_chart(topic_share_chart(base, chart_start, chart_end), width="stretch")
 
     for issue in sorted(df["classified_issue_area"].dropna().unique()):
@@ -941,7 +950,6 @@ def main() -> None:
             options=[
                 "Simulated statewide discussion feed",
                 "Real public news and Reddit discussion",
-                "Real GDELT public news only",
             ],
             index=0,
         )
@@ -964,7 +972,7 @@ def main() -> None:
 
         gdelt_error = None
         reddit_error = None
-        if data_source in {"Real public news and Reddit discussion", "Real GDELT public news only"}:
+        if data_source == "Real public news and Reddit discussion":
             if not GDELT_PATH.exists():
                 st.info("No local GDELT cache yet.")
             if st.button("Fetch latest GDELT news", type="primary"):
@@ -1008,15 +1016,6 @@ def main() -> None:
                     df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
             except Exception as exc:
                 st.warning(f"Could not load real-source caches. Showing the simulated statewide feed. {exc}")
-                df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
-        elif data_source == "Real GDELT public news only" and GDELT_PATH.exists():
-            try:
-                df = filter_recent(load_gdelt_articles(str(GDELT_PATH)), days_back)
-                if df.empty:
-                    st.warning("No GDELT rows in the selected time period. Showing the simulated statewide feed.")
-                    df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
-            except Exception as exc:
-                st.warning(f"Could not load GDELT cache. Showing the simulated statewide feed. {exc}")
                 df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
         else:
             if data_source != "Simulated statewide discussion feed" and gdelt_error is None and reddit_error is None:
