@@ -157,15 +157,9 @@ def clear_overview_filters() -> None:
     st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
 
 
-def handle_clear_filter_link() -> None:
-    if st.query_params.get("clear_filters") != "1":
-        return
-    clear_overview_filters()
-    del st.query_params["clear_filters"]
-
-
 def render_floating_clear_filters() -> None:
-    st.markdown('<a class="floating-clear" href="?clear_filters=1">Clear filters</a>', unsafe_allow_html=True)
+    st.markdown('<span class="clear-filter-anchor"></span>', unsafe_allow_html=True)
+    st.button("Clear filters", key="floating_clear_filters_button", on_click=clear_overview_filters)
 
 
 def inject_css() -> None:
@@ -375,29 +369,42 @@ def inject_css() -> None:
         .line-thin {
             height: 2px;
         }
-        .floating-clear {
+        div[data-testid="stElementContainer"]:has(.clear-filter-anchor) {
+            display: none;
+        }
+        .st-key-floating_clear_filters_button {
             position: fixed;
             right: 28px;
-            bottom: 28px;
+            top: 50%;
+            transform: translateY(-50%);
             z-index: 9999;
+        }
+        .st-key-floating_clear_filters_button button {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            min-height: 42px;
-            padding: 0 16px;
+            min-height: 48px;
+            padding: 0 20px;
             border-radius: 999px;
             background: rgba(255, 255, 255, 0.88);
             border: 1px solid rgba(17, 19, 24, 0.10);
             box-shadow: 0 18px 42px rgba(17, 19, 24, 0.14);
             color: #20242c !important;
-            font-size: 0.9rem;
+            font-size: 0.94rem;
             font-weight: 700;
-            text-decoration: none !important;
             backdrop-filter: blur(16px);
         }
-        .floating-clear:hover {
+        .st-key-floating_clear_filters_button button:hover {
             background: rgba(255, 255, 255, 0.98);
             border-color: rgba(17, 19, 24, 0.18);
+        }
+        .story-source-link {
+            color: #3454d1 !important;
+            text-decoration: none !important;
+            font-weight: 650;
+        }
+        .story-source-link:hover {
+            text-decoration: underline !important;
         }
         @media (max-width: 900px) {
             .story-row {
@@ -689,7 +696,12 @@ def render_story_table(df: pd.DataFrame) -> None:
         geography = escape(display_region(row))
         tone = escape(str(row["tone"]))
         headline = escape(str(row["headline"]))
-        source = escape(str(row.get("source_display", source_display_name(row))))
+        source_name = escape(str(row.get("source_display", source_display_name(row))))
+        url = str(row.get("url", "")).strip()
+        if url and url.lower() not in {"nan", "none", ""}:
+            source = f'<a class="story-source-link" href="{escape(url, quote=True)}" target="_blank" rel="noopener noreferrer">{source_name}</a>'
+        else:
+            source = source_name
         body.append(
             f'<div class="story-row">'
             f'<div class="story-cell">{date}</div>'
@@ -709,7 +721,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
     st.session_state.setdefault("overview_regions", [])
-    selected_geos = st.multiselect("Places", options=NY_REGIONS, key="overview_regions")
+    selected_geos = st.multiselect("NY regions", options=NY_REGIONS, key="overview_regions")
 
     base = filtered_for_overview(df, selected_geos, [])
     if base.empty:
@@ -717,6 +729,16 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         return
 
     st.markdown("**Issue trends over time**")
+    prior_issue = st.session_state.get("selected_overview_issue")
+    if prior_issue and prior_issue not in set(base["classified_issue_area"]):
+        prior_issue = None
+        st.session_state["selected_overview_issue"] = None
+    chart_dates = pd.to_datetime(base["date"], errors="coerce").dropna()
+    chart_start = chart_dates.min().normalize()
+    chart_end = chart_dates.max().normalize()
+
+    st.write("This shows what share of daily discussion each issue is taking up.")
+    st.altair_chart(topic_share_chart(base, chart_start, chart_end), width="stretch")
     st.caption("Click an issue name to filter stories. Use Clear filters to return to the full view.")
     st.markdown(
         """
@@ -730,18 +752,10 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         """,
         unsafe_allow_html=True,
     )
-    prior_issue = st.session_state.get("selected_overview_issue")
-    if prior_issue and prior_issue not in set(base["classified_issue_area"]):
-        prior_issue = None
-        st.session_state["selected_overview_issue"] = None
-    chart_dates = pd.to_datetime(base["date"], errors="coerce").dropna()
-    chart_start = chart_dates.min().normalize()
-    chart_end = chart_dates.max().normalize()
 
-    st.write("This shows what share of daily discussion each issue is taking up.")
-    st.altair_chart(topic_share_chart(base, chart_start, chart_end), width="stretch")
-
-    for issue in sorted(df["classified_issue_area"].dropna().unique()):
+    issue_order = sorted(df["classified_issue_area"].dropna().unique())
+    visible_issues = [prior_issue] if prior_issue else issue_order
+    for issue in visible_issues:
         issue_df = base[base["classified_issue_area"] == issue]
         direction = issue_direction(issue_df, chart_start, chart_end) if not issue_df.empty else "Flat"
         title_col, direction_col = st.columns([4.4, 0.8])
@@ -766,7 +780,16 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         chart_issue = selected_issue_from_mini_state(chart_state)
         if chart_issue:
             st.session_state["selected_overview_issue"] = chart_issue
-            prior_issue = chart_issue
+            st.rerun()
+
+        if prior_issue:
+            st.caption(f"Showing stories for {issue_label(prior_issue)}. Line color reflects whether coverage is concerned, mixed, or constructive.")
+            st.caption(
+                "Coverage tone is a simple reading of public language: concerned, mixed, or constructive."
+            )
+            st.write("**Stories driving the movement**")
+            render_story_table(filtered_for_overview(base, [], [], selected_issue=prior_issue))
+            return
 
     if prior_issue:
         st.caption(f"Showing stories for {issue_label(prior_issue)}. Line color reflects whether coverage is concerned, mixed, or constructive.")
@@ -939,7 +962,6 @@ def render_about() -> None:
 
 def main() -> None:
     inject_css()
-    handle_clear_filter_link()
     render_floating_clear_filters()
 
     with st.sidebar:
