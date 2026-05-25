@@ -312,6 +312,14 @@ def inject_css() -> None:
         .story-title {
             font-weight: 650;
         }
+        .empty-chart-note {
+            color: #737985;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(17, 19, 24, 0.07);
+            border-radius: 16px;
+            padding: 18px 20px;
+            margin: 6px 0 18px 0;
+        }
         @media (max-width: 900px) {
             .story-row {
                 grid-template-columns: 1fr;
@@ -421,14 +429,8 @@ def sentiment_label(score: float) -> str:
     return "mixed"
 
 
-def issue_direction(issue_df: pd.DataFrame) -> str:
-    daily = (
-        issue_df.assign(date=pd.to_datetime(issue_df["date"]).dt.date)
-        .groupby("date")
-        .size()
-        .reset_index(name="stories")
-        .sort_values("date")
-    )
+def issue_direction(issue_df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp) -> str:
+    daily = issue_daily_series(issue_df, start_date, end_date)
     if len(daily) < 4:
         return "Flat"
     midpoint = max(1, len(daily) // 2)
@@ -441,26 +443,64 @@ def issue_direction(issue_df: pd.DataFrame) -> str:
     return "Flat"
 
 
-def issue_mini_chart(df: pd.DataFrame, issue: str, selected_issue: str | None = None) -> alt.Chart:
-    issue_df = df[df["classified_issue_area"] == issue]
-    chart_data = (
-        issue_df.assign(date=pd.to_datetime(issue_df["date"]).dt.date)
-        .groupby(["date", "classified_issue_area"])
+def issue_daily_series(
+    issue_df: pd.DataFrame,
+    start_date: pd.Timestamp | None = None,
+    end_date: pd.Timestamp | None = None,
+) -> pd.DataFrame:
+    data = issue_df.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce").dt.normalize() if "date" in data else pd.NaT
+    data = data.dropna(subset=["date"])
+    if start_date is None:
+        start_date = data["date"].min() if not data.empty else pd.NaT
+    if end_date is None:
+        end_date = data["date"].max() if not data.empty else pd.NaT
+    if pd.isna(start_date) or pd.isna(end_date):
+        return pd.DataFrame(columns=["date", "stories", "avg_sentiment"])
+    date_index = pd.date_range(pd.to_datetime(start_date).normalize(), pd.to_datetime(end_date).normalize(), freq="D")
+    if data.empty:
+        daily = pd.DataFrame({"date": date_index, "stories": 0, "avg_sentiment": 0.0})
+        return daily
+    daily = (
+        data.groupby("date")
         .agg(stories=("headline", "count"), avg_sentiment=("sentiment_score", "mean"))
+        .reindex(date_index)
+        .rename_axis("date")
         .reset_index()
     )
+    daily["stories"] = daily["stories"].fillna(0).astype(int)
+    daily["avg_sentiment"] = daily["avg_sentiment"].ffill().bfill().fillna(0)
+    return daily
+
+
+def issue_tone_color(issue_df: pd.DataFrame) -> str:
+    score = float(issue_df["sentiment_score"].mean()) if not issue_df.empty else 0.0
+    if score <= -0.10:
+        return "#c75f5f"
+    if score >= 0.10:
+        return "#3d9a6a"
+    return "#d8a923"
+
+
+def issue_mini_chart(
+    df: pd.DataFrame,
+    issue: str,
+    selected_issue: str | None = None,
+    start_date: pd.Timestamp | None = None,
+    end_date: pd.Timestamp | None = None,
+) -> alt.Chart:
+    issue_df = df[df["classified_issue_area"] == issue]
+    chart_data = issue_daily_series(issue_df, start_date, end_date)
+    chart_data["classified_issue_area"] = issue
+    y_max = max(5, int(chart_data["stories"].max()) + 2)
     select_issue = alt.selection_point(name=f"issue_select_{issue_key(issue)}", fields=["classified_issue_area"], on="click", empty=False)
     hover = alt.selection_point(fields=["date"], nearest=True, on="mouseover", empty=False)
 
     base = alt.Chart(chart_data).encode(
-        x=alt.X("date:T", title=None, axis=alt.Axis(labelAngle=0, tickCount=6)),
-        y=alt.Y("stories:Q", title="Stories", axis=alt.Axis(tickCount=3)),
-        color=alt.Color(
-            "avg_sentiment:Q",
-            scale=alt.Scale(domain=[-0.45, 0, 0.45], range=["#c75f5f", "#d8a923", "#3d9a6a"]),
-            legend=None,
-        ),
-        size=alt.Size("stories:Q", scale=alt.Scale(range=[1.8, 7.5]), legend=None),
+        x=alt.X("date:T", title=None, axis=alt.Axis(format="%b %d", labelAngle=-35, tickCount=6, grid=False)),
+        y=alt.Y("stories:Q", title="Stories", scale=alt.Scale(domain=[0, y_max]), axis=alt.Axis(tickCount=3, grid=True)),
+        color=alt.value(issue_tone_color(issue_df)),
+        size=alt.Size("stories:Q", scale=alt.Scale(domain=[0, max(1, int(chart_data["stories"].max()))], range=[2.5, 7.5]), legend=None),
         tooltip=[
             alt.Tooltip("date:T", title="Date"),
             alt.Tooltip("stories:Q", title="Stories"),
@@ -471,7 +511,7 @@ def issue_mini_chart(df: pd.DataFrame, issue: str, selected_issue: str | None = 
         opacity=alt.value(1 if selected_issue in {None, issue} else 0.28)
     )
     points = base.mark_circle(size=95).encode(opacity=alt.condition(hover, alt.value(1), alt.value(0)))
-    return (line + points).add_params(hover, select_issue).properties(height=118)
+    return (line + points).add_params(hover, select_issue).properties(height=142)
 
 
 def issue_key(issue: str) -> str:
@@ -538,13 +578,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
     st.session_state.setdefault("overview_regions", [])
-    controls = st.columns([0.8, 1.45])
-    if controls[0].button("Show all issues", key="show_all_issues_button"):
-        st.session_state["selected_overview_issue"] = None
-        st.session_state["overview_regions"] = []
-        st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
-        st.rerun()
-    selected_geos = controls[1].multiselect("Places", options=NY_REGIONS, key="overview_regions")
+    selected_geos = st.multiselect("Places", options=NY_REGIONS, key="overview_regions")
 
     base = filtered_for_overview(df, selected_geos, [])
     if base.empty:
@@ -557,20 +591,27 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     if prior_issue and prior_issue not in set(base["classified_issue_area"]):
         prior_issue = None
         st.session_state["selected_overview_issue"] = None
+    chart_dates = pd.to_datetime(base["date"], errors="coerce").dropna()
+    chart_start = chart_dates.min().normalize()
+    chart_end = chart_dates.max().normalize()
 
     for issue in sorted(df["classified_issue_area"].dropna().unique()):
         issue_df = base[base["classified_issue_area"] == issue]
-        if issue_df.empty:
-            continue
-        direction = issue_direction(issue_df)
+        direction = issue_direction(issue_df, chart_start, chart_end) if not issue_df.empty else "Flat"
         title_col, direction_col = st.columns([4.4, 0.8])
         if title_col.button(issue_label(issue), key=f"issue_title_{issue_key(issue)}"):
-            st.session_state["selected_overview_issue"] = issue
+            st.session_state["selected_overview_issue"] = None if prior_issue == issue else issue
             st.rerun()
         direction_col.markdown(f"<div class='small-muted'>{direction}</div>", unsafe_allow_html=True)
+        if issue_df.empty:
+            st.markdown(
+                "<div class='empty-chart-note'>No stories found for this issue and place.</div>",
+                unsafe_allow_html=True,
+            )
+            continue
         chart_key = f"issue_chart_{issue_key(issue)}_{st.session_state.get('overview_chart_reset', 0)}"
         chart_state = st.altair_chart(
-            issue_mini_chart(base, issue, prior_issue),
+            issue_mini_chart(base, issue, prior_issue, chart_start, chart_end),
             width="stretch",
             key=chart_key,
             on_select="rerun",
