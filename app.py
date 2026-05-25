@@ -421,64 +421,85 @@ def sentiment_label(score: float) -> str:
     return "mixed"
 
 
-def overview_chart(df: pd.DataFrame, selected_issue: str | None = None) -> alt.Chart:
-    if selected_issue:
-        df = df[df["classified_issue_area"] == selected_issue]
+def issue_direction(issue_df: pd.DataFrame) -> str:
+    daily = (
+        issue_df.assign(date=pd.to_datetime(issue_df["date"]).dt.date)
+        .groupby("date")
+        .size()
+        .reset_index(name="stories")
+        .sort_values("date")
+    )
+    if len(daily) < 4:
+        return "Flat"
+    midpoint = max(1, len(daily) // 2)
+    early = float(daily.head(midpoint)["stories"].mean())
+    recent = float(daily.tail(midpoint)["stories"].mean())
+    if recent >= early * 1.12:
+        return "Rising"
+    if recent <= early * 0.88:
+        return "Cooling"
+    return "Flat"
+
+
+def issue_mini_chart(df: pd.DataFrame, issue: str, selected_issue: str | None = None) -> alt.Chart:
+    issue_df = df[df["classified_issue_area"] == issue]
     chart_data = (
-        df.assign(date=pd.to_datetime(df["date"]).dt.date)
+        issue_df.assign(date=pd.to_datetime(issue_df["date"]).dt.date)
         .groupby(["date", "classified_issue_area"])
         .agg(stories=("headline", "count"), avg_sentiment=("sentiment_score", "mean"))
         .reset_index()
     )
-    chart_data["coverage"] = chart_data["avg_sentiment"].apply(sentiment_label)
+    select_issue = alt.selection_point(name=f"issue_select_{issue_key(issue)}", fields=["classified_issue_area"], on="click", empty=False)
     hover = alt.selection_point(fields=["date"], nearest=True, on="mouseover", empty=False)
 
-    if selected_issue:
-        color = alt.Color(
-            "coverage:N",
-            scale=alt.Scale(domain=["negative", "mixed", "positive"], range=["#d65f5f", "#d5a11e", "#2e9d68"]),
-            legend=alt.Legend(title="Coverage tone"),
-        )
-    else:
-        legend_select = alt.selection_point(name="issue_select", fields=["classified_issue_area"], bind="legend")
-        color = alt.Color("classified_issue_area:N", legend=alt.Legend(title="Issue"))
-
     base = alt.Chart(chart_data).encode(
-        x=alt.X("date:T", title="Time"),
-        y=alt.Y("stories:Q", title="Stories / discussion items"),
-        color=color,
+        x=alt.X("date:T", title=None, axis=alt.Axis(labelAngle=0, tickCount=6)),
+        y=alt.Y("stories:Q", title="Stories", axis=alt.Axis(tickCount=3)),
+        color=alt.Color(
+            "avg_sentiment:Q",
+            scale=alt.Scale(domain=[-0.45, 0, 0.45], range=["#c75f5f", "#d8a923", "#3d9a6a"]),
+            legend=None,
+        ),
+        size=alt.Size("stories:Q", scale=alt.Scale(range=[1.8, 7.5]), legend=None),
         tooltip=[
             alt.Tooltip("date:T", title="Date"),
-            alt.Tooltip("classified_issue_area:N", title="Issue"),
             alt.Tooltip("stories:Q", title="Stories"),
-            alt.Tooltip("coverage:N", title="Coverage tone"),
+            alt.Tooltip("avg_sentiment:Q", title="Average tone", format=".2f"),
         ],
     )
-    line = base.mark_line(point=True, strokeWidth=3).encode(
-        opacity=alt.condition(legend_select, alt.value(1), alt.value(0.16)) if not selected_issue else alt.value(1)
+    line = base.mark_trail().encode(
+        opacity=alt.value(1 if selected_issue in {None, issue} else 0.28)
     )
     points = base.mark_circle(size=95).encode(opacity=alt.condition(hover, alt.value(1), alt.value(0)))
-    if not selected_issue:
-        line = line.add_params(legend_select)
-    return (line + points.add_params(hover)).properties(height=430)
+    return (line + points).add_params(hover, select_issue).properties(height=118)
 
 
-def selected_issue_from_chart_state(state: object) -> str | None:
+def issue_key(issue: str) -> str:
+    return "".join(char if char.isalnum() else "_" for char in issue.lower()).strip("_")
+
+
+def issue_label(issue: str) -> str:
+    if issue.startswith("AI"):
+        return "AI" + issue[2:].capitalize()
+    return issue.capitalize()
+
+
+def selected_issue_from_mini_state(state: object) -> str | None:
     try:
         selection = dict(state.selection)  # type: ignore[attr-defined]
     except Exception:
         return None
-    raw = selection.get("issue_select")
-    if isinstance(raw, list) and raw:
-        first = raw[0]
-        if isinstance(first, dict):
-            return first.get("classified_issue_area")
-    if isinstance(raw, dict):
-        values = raw.get("classified_issue_area")
-        if isinstance(values, list) and values:
-            return str(values[0])
-        if isinstance(values, str):
-            return values
+    for raw in selection.values():
+        if isinstance(raw, list) and raw:
+            first = raw[0]
+            if isinstance(first, dict) and first.get("classified_issue_area"):
+                return str(first["classified_issue_area"])
+        if isinstance(raw, dict):
+            value = raw.get("classified_issue_area")
+            if isinstance(value, list) and value:
+                return str(value[0])
+            if isinstance(value, str):
+                return value
     return None
 
 
@@ -517,49 +538,55 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
     st.session_state.setdefault("overview_regions", [])
-    st.session_state.setdefault("overview_tones", [])
-    controls = st.columns([0.8, 1.1, 1.1])
+    controls = st.columns([0.8, 1.45])
     if controls[0].button("Show all issues", key="show_all_issues_button"):
         st.session_state["selected_overview_issue"] = None
         st.session_state["overview_regions"] = []
-        st.session_state["overview_tones"] = []
         st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
         st.rerun()
-    selected_geos = controls[1].multiselect("Regions", options=NY_REGIONS, key="overview_regions")
-    selected_tones = controls[2].multiselect("Coverage tone", options=sorted(df["tone"].unique()), key="overview_tones")
+    selected_geos = controls[1].multiselect("Places", options=NY_REGIONS, key="overview_regions")
 
-    base = filtered_for_overview(df, selected_geos, selected_tones)
+    base = filtered_for_overview(df, selected_geos, [])
     if base.empty:
         st.warning("No stories match the selected filters.")
         return
 
     st.markdown("**Issue trends over time**")
-    st.caption("Click issue names in the legend to isolate trends.")
+    st.caption("Click issue names to isolate trends.")
     prior_issue = st.session_state.get("selected_overview_issue")
     if prior_issue and prior_issue not in set(base["classified_issue_area"]):
         prior_issue = None
         st.session_state["selected_overview_issue"] = None
-    if prior_issue:
-        st.altair_chart(overview_chart(base, prior_issue), width="stretch")
-    else:
+
+    for issue in sorted(df["classified_issue_area"].dropna().unique()):
+        issue_df = base[base["classified_issue_area"] == issue]
+        if issue_df.empty:
+            continue
+        direction = issue_direction(issue_df)
+        title_col, direction_col = st.columns([4.4, 0.8])
+        if title_col.button(issue_label(issue), key=f"issue_title_{issue_key(issue)}"):
+            st.session_state["selected_overview_issue"] = issue
+            st.rerun()
+        direction_col.markdown(f"<div class='small-muted'>{direction}</div>", unsafe_allow_html=True)
+        chart_key = f"issue_chart_{issue_key(issue)}_{st.session_state.get('overview_chart_reset', 0)}"
         chart_state = st.altair_chart(
-            overview_chart(base),
+            issue_mini_chart(base, issue, prior_issue),
             width="stretch",
-            key=f"overview_issue_chart_{st.session_state.get('overview_chart_reset', 0)}",
+            key=chart_key,
             on_select="rerun",
-            selection_mode=["issue_select"],
+            selection_mode=[f"issue_select_{issue_key(issue)}"],
         )
-        chart_issue = selected_issue_from_chart_state(chart_state)
+        chart_issue = selected_issue_from_mini_state(chart_state)
         if chart_issue:
             st.session_state["selected_overview_issue"] = chart_issue
             prior_issue = chart_issue
 
     if prior_issue:
-        st.caption(f"Showing stories for {prior_issue}. Line color reflects whether coverage is negative, mixed, or positive.")
+        st.caption(f"Showing stories for {issue_label(prior_issue)}. Line color reflects whether coverage is concerned, mixed, or constructive.")
     else:
         st.caption(
             "Change vs recent baseline compares current discussion volume with recent norms. "
-            "Select one issue from the legend to color the line by coverage tone."
+            "Line color reflects average coverage tone: red is more concerned, yellow is mixed, green is more constructive."
         )
 
     current = filtered_for_overview(base, [], [], selected_issue=prior_issue)
@@ -626,8 +653,6 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         mime="text/csv",
     )
 
-    st.write("**Message hypothesis bank**")
-    st.caption("Generated as a downloadable research artifact for strategist review.")
     st.download_button(
         "Download message_hypothesis_bank.csv",
         data=outputs["message_hypothesis_bank"].to_csv(index=False),

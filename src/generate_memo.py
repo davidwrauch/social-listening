@@ -37,6 +37,12 @@ VOTER_CONCERNS = {
 }
 
 
+def format_issue(issue: str) -> str:
+    if issue.startswith("AI"):
+        return "AI" + issue[2:].capitalize()
+    return issue.capitalize()
+
+
 def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
     latest_date = pd.to_datetime(df["date"]).max().date()
     previous_date = pd.to_datetime(df["date"]).min().date()
@@ -54,10 +60,10 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
         "**Attention and tone:** how much attention an issue is receiving and whether coverage is mostly positive, negative, or mixed.",
         "",
         "## Biggest shifts in discussion",
-        f"- **Fastest-rising discussion:** {rising.iloc[0]['classified_issue_area']} ({_baseline_phrase(rising.iloc[0]['spike_score'])}).",
-        f"- **Most sustained attention:** {rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area']} has the highest story volume.",
-        f"- **Most negative tone:** {most_negative['classified_issue_area']} has the most concerned coverage language.",
-        f"- **Strongest attention-and-tone signal:** {strongest_signal['classified_issue_area']} combines high volume with stronger concern language.",
+        f"- **Fastest-rising discussion:** {format_issue(rising.iloc[0]['classified_issue_area'])} ({_baseline_phrase(rising.iloc[0]['spike_score'])}).",
+        f"- **Most sustained attention:** {format_issue(rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area'])} has the highest story volume.",
+        f"- **Most negative tone:** {format_issue(most_negative['classified_issue_area'])} has the most concerned coverage language.",
+        f"- **Strongest attention-and-tone signal:** {format_issue(strongest_signal['classified_issue_area'])} combines high volume with stronger concern language.",
         "",
         "## Issues with rising attention",
     ]
@@ -67,21 +73,21 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
     else:
         for _, row in pd.concat([test_issues, watch_issues]).iterrows():
             lines.append(
-                f"- **{row['classified_issue_area']}**: {row['radar_flag']} "
+                f"- **{format_issue(row['classified_issue_area'])}**: {str(row['radar_flag']).capitalize()} "
                 f"({_baseline_phrase(row['spike_score'])}, attention-and-tone signal {row['avg_intensity']:.1f})."
             )
 
     lines.extend(["", "## Likely concern behind the discussion"])
     for _, row in rollup.iterrows():
         issue = row["classified_issue_area"]
-        lines.append(f"- **{issue}:** {VOTER_CONCERNS.get(issue, 'issue salience and institutional responsiveness')}.")
+        lines.append(f"- **{format_issue(issue)}:** {VOTER_CONCERNS.get(issue, 'issue salience and institutional responsiveness')}.")
 
     lines.extend(["", "## Recommended message hypotheses"])
     for _, row in rollup.iterrows():
         issue = row["classified_issue_area"]
         if row["radar_flag"] in {"test", "watch"}:
             for hypothesis in MESSAGE_HYPOTHESES.get(issue, []):
-                lines.append(f"- **{issue}:** {hypothesis}")
+                lines.append(f"- **{format_issue(issue)}:** {hypothesis}")
 
     lines.extend(
         [
