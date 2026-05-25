@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
+from src.regions import REGION_KEYWORDS
+
 ISSUE_KEYWORDS: dict[str, list[str]] = {
     "affordability / cost of living": [
         "affordability",
@@ -72,15 +74,7 @@ ISSUE_KEYWORDS: dict[str, list[str]] = {
     ],
 }
 
-GEOGRAPHY_KEYWORDS: dict[str, list[str]] = {
-    "NYC": ["new york city", "nyc", "manhattan", "brooklyn", "queens", "bronx", "staten island"],
-    "Long Island": ["long island", "nassau", "suffolk", "hempstead", "huntington"],
-    "Hudson Valley": ["hudson valley", "westchester", "rockland", "orange county", "yonkers"],
-    "Capital Region": ["capital region", "albany", "schenectady", "troy", "saratoga"],
-    "Central NY": ["central ny", "syracuse", "utica", "rome"],
-    "Western NY": ["western ny", "buffalo", "rochester", "erie county", "monroe county"],
-    "North Country": ["north country", "watertown", "plattsburgh", "st. lawrence"],
-}
+GEOGRAPHY_KEYWORDS: dict[str, list[str]] = REGION_KEYWORDS
 
 AUDIENCE_SEGMENT_HINTS: dict[str, str] = {
     "affordability / cost of living": "cost-pressured households",

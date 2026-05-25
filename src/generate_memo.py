@@ -1,4 +1,4 @@
-"""Campaign research memo generation from narrative radar outputs."""
+"""Campaign research memo generation from scored public-discourse signals."""
 
 from __future__ import annotations
 
@@ -42,16 +42,22 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
     previous_date = pd.to_datetime(df["date"]).min().date()
     test_issues = rollup[rollup["radar_flag"] == "test"]
     watch_issues = rollup[rollup["radar_flag"] == "watch"]
+    rising = rollup.sort_values("spike_score", ascending=False).head(3)
+    most_negative = rollup.sort_values("avg_sentiment", ascending=True).iloc[0]
+    strongest_signal = rollup.sort_values("avg_intensity", ascending=False).iloc[0]
 
     lines = [
         "# Social Listening Research Memo",
         "",
-        f"**Stories analyzed:** {previous_date} to {latest_date}",
+        f"**Stories analyzed:** {len(df)} public stories and posts from {previous_date} to {latest_date}.",
+        "",
+        "**Attention and tone:** how much attention an issue is receiving and whether coverage is mostly positive, negative, or mixed.",
         "",
         "## Biggest shifts in discussion",
-        f"- The public-discourse set contains {len(df)} items across {df['classified_issue_area'].nunique()} issue areas.",
-        f"- Highest-volume issue: {rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area']}.",
-        f"- Strongest attention-and-tone signal: {rollup.sort_values('avg_intensity', ascending=False).iloc[0]['classified_issue_area']}.",
+        f"- **Fastest-rising discussion:** {rising.iloc[0]['classified_issue_area']} ({_baseline_phrase(rising.iloc[0]['spike_score'])}).",
+        f"- **Most sustained attention:** {rollup.sort_values('mentions', ascending=False).iloc[0]['classified_issue_area']} has the highest story volume.",
+        f"- **Most negative tone:** {most_negative['classified_issue_area']} has the most concerned coverage language.",
+        f"- **Strongest attention-and-tone signal:** {strongest_signal['classified_issue_area']} combines high volume with stronger concern language.",
         "",
         "## Issues with rising attention",
     ]
@@ -65,12 +71,12 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
                 f"({_baseline_phrase(row['spike_score'])}, attention-and-tone signal {row['avg_intensity']:.1f})."
             )
 
-    lines.extend(["", "## Likely Voter Concern Behind The Discourse"])
+    lines.extend(["", "## Likely concern behind the discussion"])
     for _, row in rollup.iterrows():
         issue = row["classified_issue_area"]
         lines.append(f"- **{issue}:** {VOTER_CONCERNS.get(issue, 'issue salience and institutional responsiveness')}.")
 
-    lines.extend(["", "## Recommended Message Hypotheses"])
+    lines.extend(["", "## Recommended message hypotheses"])
     for _, row in rollup.iterrows():
         issue = row["classified_issue_area"]
         if row["radar_flag"] in {"test", "watch"}:
@@ -80,7 +86,7 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
     lines.extend(
         [
             "",
-            "## What Should Be Tested Next",
+            "## What should be tested next",
             "- Convert watch/test issues into candidate message arms: economic frame, values/trust frame, and competence/problem-solving frame.",
             "- Use public-discourse context features to prioritize research questions and design adaptive experiments.",
             "- Define rewards around engagement quality, surveys, signups, and other consent-based signals without claiming individual persuasion.",
@@ -89,7 +95,7 @@ def generate_research_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> str:
             "- Public data only; no private voter data is used.",
             "- Keyword classification is transparent but approximate.",
             "- Sentiment and attention-and-tone scores are simple research triage signals, not truth labels.",
-            "- The bandit log is simulated and intended only to show future adaptive experimentation design.",
+            "- The experiment log is simulated and intended only to show future adaptive experimentation design.",
             "- Production use would require legal/privacy review, platform compliance, and experimental safeguards.",
         ]
     )

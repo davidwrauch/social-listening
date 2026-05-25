@@ -42,15 +42,7 @@ ISSUE_NARRATIVES = {
     ],
 }
 
-GEOGRAPHIES = [
-    "NYC",
-    "Long Island",
-    "Hudson Valley",
-    "Capital Region",
-    "Central NY",
-    "Western NY",
-    "North Country",
-]
+GEOGRAPHIES = ["NYC", "Long Island", "Hudson Valley", "Capital Region", "Central NY", "Western NY"]
 
 GEO_DETAILS = {
     "NYC": ["Queens", "Brooklyn", "Bronx", "Manhattan", "Staten Island"],
@@ -59,7 +51,6 @@ GEO_DETAILS = {
     "Capital Region": ["Albany", "Schenectady", "Troy", "Saratoga"],
     "Central NY": ["Syracuse", "Utica", "Rome"],
     "Western NY": ["Buffalo", "Rochester", "Erie County", "Monroe County"],
-    "North Country": ["Watertown", "Plattsburgh", "St. Lawrence"],
 }
 
 SOURCE_TYPES = [
@@ -166,18 +157,18 @@ def _load_seed(seed_path: str | Path, sample_path: str | Path) -> pd.DataFrame:
 
 def _weighted_geography(issue: str, rng: np.random.Generator) -> str:
     if issue in {"affordability / cost of living", "AI / tech jobs"}:
-        probs = [0.32, 0.22, 0.12, 0.1, 0.08, 0.12, 0.04]
+        probs = [0.34, 0.23, 0.13, 0.10, 0.08, 0.12]
     elif issue == "housing / rent":
-        probs = [0.42, 0.18, 0.18, 0.07, 0.05, 0.07, 0.03]
+        probs = [0.44, 0.19, 0.18, 0.07, 0.05, 0.07]
     elif issue == "immigration / public safety":
-        probs = [0.38, 0.18, 0.1, 0.08, 0.06, 0.12, 0.08]
+        probs = [0.42, 0.20, 0.11, 0.08, 0.06, 0.13]
     else:
-        probs = [0.24, 0.16, 0.12, 0.22, 0.08, 0.12, 0.06]
+        probs = [0.26, 0.17, 0.13, 0.23, 0.08, 0.13]
     return str(rng.choice(GEOGRAPHIES, p=np.array(probs) / sum(probs)))
 
 
 def _weighted_source_type(source_weights: dict[str, float], rng: np.random.Generator) -> str:
-    if source_weights:
+    if source_weights and len(source_weights) > 1:
         keys = list(source_weights)
         probs = np.array([source_weights[key] for key in keys], dtype=float)
         return str(rng.choice(keys, p=probs / probs.sum()))

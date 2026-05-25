@@ -1,35 +1,7 @@
 geography,top_issue,mentions,avg_sentiment,change_vs_recent_baseline,why_it_matters,recommended_next_step
-NYC,immigration / public safety,113,-0.09,0.05,"immigration / public safety is the leading signal here, with 113 stories and discussion about 0.05x above recent baseline.",monitor next cycle
-Long Island,AI / tech jobs,80,0.41,0.09,"AI / tech jobs is the leading signal here, with 80 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Western NY,AI / tech jobs,44,0.39,0.09,"AI / tech jobs is the leading signal here, with 44 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Hudson Valley,AI / tech jobs,41,0.4,0.09,"AI / tech jobs is the leading signal here, with 41 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Capital Region,affordability / cost of living,39,-0.06,0.0,"affordability / cost of living is the leading signal here, with 39 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Staten Island,immigration / public safety,30,-0.14,0.05,"immigration / public safety is the leading signal here, with 30 stories and discussion about 0.05x above recent baseline.",monitor next cycle
-Bronx,affordability / cost of living,30,-0.13,0.0,"affordability / cost of living is the leading signal here, with 30 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Brooklyn,immigration / public safety,25,0.02,0.05,"immigration / public safety is the leading signal here, with 25 stories and discussion about 0.05x above recent baseline.",monitor next cycle
-Central NY,affordability / cost of living,25,-0.1,0.0,"affordability / cost of living is the leading signal here, with 25 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Suffolk,AI / tech jobs,24,0.45,0.09,"AI / tech jobs is the leading signal here, with 24 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Queens,affordability / cost of living,23,-0.04,0.0,"affordability / cost of living is the leading signal here, with 23 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Huntington,AI / tech jobs,22,0.36,0.09,"AI / tech jobs is the leading signal here, with 22 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-North Country,affordability / cost of living,22,-0.12,0.0,"affordability / cost of living is the leading signal here, with 22 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Nassau,AI / tech jobs,21,0.44,0.09,"AI / tech jobs is the leading signal here, with 21 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Manhattan,AI / tech jobs,19,0.39,0.09,"AI / tech jobs is the leading signal here, with 19 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Hempstead,affordability / cost of living,17,-0.07,0.0,"affordability / cost of living is the leading signal here, with 17 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Rockland,AI / tech jobs,15,0.32,0.09,"AI / tech jobs is the leading signal here, with 15 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Rochester,affordability / cost of living,14,-0.05,0.0,"affordability / cost of living is the leading signal here, with 14 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Monroe County,AI / tech jobs,13,0.4,0.09,"AI / tech jobs is the leading signal here, with 13 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Buffalo,AI / tech jobs,12,0.38,0.09,"AI / tech jobs is the leading signal here, with 12 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Westchester,affordability / cost of living,12,-0.1,0.0,"affordability / cost of living is the leading signal here, with 12 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Erie County,AI / tech jobs,11,0.32,0.09,"AI / tech jobs is the leading signal here, with 11 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Troy,affordability / cost of living,11,0.02,0.0,"affordability / cost of living is the leading signal here, with 11 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Watertown,affordability / cost of living,11,-0.05,0.0,"affordability / cost of living is the leading signal here, with 11 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Schenectady,affordability / cost of living,11,-0.16,0.0,"affordability / cost of living is the leading signal here, with 11 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Albany,affordability / cost of living,11,0.05,0.0,"affordability / cost of living is the leading signal here, with 11 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Orange County,AI / tech jobs,10,0.4,0.09,"AI / tech jobs is the leading signal here, with 10 stories and discussion about 0.09x above recent baseline.",monitor next cycle
-Yonkers,affordability / cost of living,10,0.05,0.0,"affordability / cost of living is the leading signal here, with 10 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Plattsburgh,immigration / public safety,9,-0.17,0.05,"immigration / public safety is the leading signal here, with 9 stories and discussion about 0.05x above recent baseline.",monitor next cycle
-Syracuse,affordability / cost of living,9,-0.17,0.0,"affordability / cost of living is the leading signal here, with 9 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Rome,affordability / cost of living,8,-0.06,0.0,"affordability / cost of living is the leading signal here, with 8 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Utica,affordability / cost of living,8,-0.06,0.0,"affordability / cost of living is the leading signal here, with 8 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-St. Lawrence,affordability / cost of living,8,-0.22,0.0,"affordability / cost of living is the leading signal here, with 8 stories and discussion about 0.00x above recent baseline.",monitor next cycle
-Saratoga,affordability / cost of living,6,-0.21,0.0,"affordability / cost of living is the leading signal here, with 6 stories and discussion about 0.00x above recent baseline.",monitor next cycle
+NYC,immigration / public safety,132,-0.09,0.15,"immigration / public safety is the leading signal here, with 132 stories and discussion about 0.15x above recent baseline.",monitor next cycle
+Long Island,affordability / cost of living,86,-0.04,0.2,"affordability / cost of living is the leading signal here, with 86 stories and discussion about 0.20x above recent baseline.",monitor next cycle
+Hudson Valley,affordability / cost of living,54,-0.1,0.2,"affordability / cost of living is the leading signal here, with 54 stories and discussion about 0.20x above recent baseline.",monitor next cycle
+Western NY,affordability / cost of living,48,-0.13,0.2,"affordability / cost of living is the leading signal here, with 48 stories and discussion about 0.20x above recent baseline.",monitor next cycle
+Capital Region,corruption / competence / trust,41,-0.01,0.0,"corruption / competence / trust is the leading signal here, with 41 stories and discussion about 0.00x above recent baseline.",monitor next cycle
+Central NY,affordability / cost of living,29,-0.05,0.2,"affordability / cost of living is the leading signal here, with 29 stories and discussion about 0.20x above recent baseline.",monitor next cycle

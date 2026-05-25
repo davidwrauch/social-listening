@@ -6,5 +6,5 @@
 4. Which frame for AI / tech jobs feels more credible: economic stakes, competence, or values/trust?
 5. In NYC, what specific concern is driving attention to immigration / public safety: residents looking for order, fairness, and visible quality-of-life management?
 6. Which frame for immigration / public safety feels more credible: economic stakes, competence, or values/trust?
-7. In NYC, what specific concern is driving attention to housing / rent: renters and families worried that stable housing is moving out of reach?
-8. Which frame for housing / rent feels more credible: economic stakes, competence, or values/trust?
+7. In NYC, what specific concern is driving attention to corruption / competence / trust: voters questioning whether institutions can deliver honestly and competently?
+8. Which frame for corruption / competence / trust feels more credible: economic stakes, competence, or values/trust?

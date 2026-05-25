@@ -12,9 +12,11 @@ from src.bandit_simulator import (
     build_context_features,
     generate_message_arms,
 )
-from src.classify_topics import classify_records, geography_counts, summarize_keyword_rules
+from src.classify_topics import classify_records
 from src.collect_gdelt import fetch_latest_gdelt_articles
+from src.collect_reddit import fetch_latest_reddit_posts
 from src.generate_memo import generate_research_memo
+from src.regions import NY_REGIONS, normalize_region_label
 from src.research_outputs import export_research_outputs
 from src.scoring import add_scores, add_spike_scores, daily_issue_volume, issue_rollup
 from src.synthetic_corpus import generate_operational_demo_corpus
@@ -22,6 +24,7 @@ from src.synthetic_corpus import generate_operational_demo_corpus
 ROOT = Path(__file__).parent
 ARTICLE_PATH = ROOT / "data" / "sample_articles.csv"
 GDELT_PATH = ROOT / "data" / "gdelt_articles.csv"
+REDDIT_PATH = ROOT / "data" / "reddit_posts.csv"
 OPERATIONAL_PATH = ROOT / "data" / "operational_demo_corpus.csv"
 BANDIT_LOG_PATH = ROOT / "data" / "sample_bandit_log.csv"
 MEMO_PATH = ROOT / "outputs" / "sample_research_memo.md"
@@ -38,6 +41,8 @@ st.set_page_config(
 @st.cache_data
 def prepare_articles(raw: pd.DataFrame) -> pd.DataFrame:
     classified = pd.DataFrame(classify_records(raw.to_dict(orient="records")))
+    classified["region"] = classified.apply(display_region, axis=1)
+    classified["source_display"] = classified.apply(source_display_name, axis=1)
     scored = add_scores(classified)
     return add_spike_scores(scored)
 
@@ -57,6 +62,25 @@ def load_operational_articles(path: str) -> pd.DataFrame:
 @st.cache_data
 def load_gdelt_articles(path: str) -> pd.DataFrame:
     return prepare_articles(pd.read_csv(path))
+
+
+@st.cache_data
+def load_reddit_posts(path: str) -> pd.DataFrame:
+    return prepare_articles(pd.read_csv(path))
+
+
+@st.cache_data
+def load_combined_real_sources(gdelt_path: str | None, reddit_path: str | None) -> pd.DataFrame:
+    frames = []
+    if gdelt_path and Path(gdelt_path).exists():
+        frames.append(pd.read_csv(gdelt_path))
+    if reddit_path and Path(reddit_path).exists():
+        frames.append(pd.read_csv(reddit_path))
+    if not frames:
+        raise FileNotFoundError("No real-source cache is available yet.")
+    raw = pd.concat(frames, ignore_index=True, sort=False)
+    raw = raw.drop_duplicates(subset=["url"], keep="first").drop_duplicates(subset=["headline"], keep="first")
+    return prepare_articles(raw)
 
 
 @st.cache_data
@@ -96,6 +120,35 @@ def data_quality_summary(df: pd.DataFrame) -> dict:
         "top_geographies": top_geographies,
         "top_sources": top_sources,
     }
+
+
+def display_region(row: pd.Series) -> str:
+    for column in ["region", "geography", "geography_matches", "detected_geographies", "geography_refs"]:
+        if column in row and pd.notna(row[column]) and str(row[column]).strip():
+            label = normalize_region_label(row[column])
+            if label != "Statewide":
+                return label
+    text = f"{row.get('headline', '')} {row.get('snippet', '')}"
+    return normalize_region_label(text)
+
+
+def source_display_name(row: pd.Series) -> str:
+    platform = str(row.get("source_platform", "")).lower()
+    subreddit = str(row.get("subreddit", "")).strip()
+    if platform == "reddit" or subreddit:
+        return f"r/{subreddit}" if subreddit and not subreddit.startswith("r/") else subreddit or "Reddit"
+    source_name = str(row.get("source_name", "")).strip()
+    if source_name and source_name.lower() not in {"nan", "none"}:
+        if "." in source_name and " " not in source_name:
+            label = source_name.lower().replace("www.", "").split("/")[0].split(".")[0]
+            return label.replace("-", " ").replace("_", " ").title()
+        return source_name
+    domain = str(row.get("domain", "")).strip().lower()
+    if not domain or domain in {"nan", "none"}:
+        return "Public source"
+    domain = domain.replace("www.", "").split("/")[0]
+    label = domain.split(".")[0].replace("-", " ").replace("_", " ").strip()
+    return label.title() if label else domain
 
 
 def inject_css() -> None:
@@ -227,7 +280,7 @@ def inject_css() -> None:
         }
         .story-row {
             display: grid;
-            grid-template-columns: 92px 1.15fr 0.9fr 0.8fr minmax(280px, 2.4fr) 1fr;
+            grid-template-columns: 104px 1.1fr 0.9fr 112px minmax(320px, 2.5fr) 1.05fr;
             gap: 14px;
             align-items: start;
             background: rgba(255,255,255,0.82);
@@ -252,6 +305,9 @@ def inject_css() -> None:
             font-size: 0.92rem;
             line-height: 1.45;
             overflow-wrap: anywhere;
+        }
+        .story-tone {
+            white-space: nowrap;
         }
         .story-title {
             font-weight: 650;
@@ -305,10 +361,10 @@ def render_onboarding() -> None:
             <div class="eyebrow">Briefing system for public discourse</div>
             <div class="briefing-title">See which stories are rising, where they are moving, and what researchers should investigate next.</div>
             <div class="briefing-copy">
-            Social listening turns public news and discussion into a calmer research signal for campaign teams.
-            This prototype uses extrapolated GDELT-derived New York patterns to simulate a statewide discussion feed,
-            while still allowing live public-news updates. It supports human strategists and future adaptive
-            experimentation systems, but it is not voter microtargeting.
+            Social listening turns public news and public online discussion into a calmer research signal for
+            campaign teams. This prototype uses extrapolated New York patterns to simulate a statewide discussion
+            feed, while also supporting live GDELT news and public Reddit posts. It supports human strategists and
+            future adaptive experimentation systems, but it is not voter microtargeting.
             </div>
         </div>
         """,
@@ -320,22 +376,27 @@ def render_onboarding() -> None:
 
 
 def display_geography(row: pd.Series) -> str:
-    for column in ["geography_matches", "detected_geographies", "geography_refs"]:
-        if column in row and pd.notna(row[column]) and str(row[column]).strip():
-            return str(row[column]).replace(";", ", ")
-    return "Statewide"
+    return display_region(row)
 
 
-def filtered_for_overview(df: pd.DataFrame, selected_issues: list[str], selected_geos: list[str], selected_tones: list[str]) -> pd.DataFrame:
+def filtered_for_overview(
+    df: pd.DataFrame,
+    selected_geos: list[str],
+    selected_tones: list[str],
+    selected_issue: str | None = None,
+) -> pd.DataFrame:
     data = df.copy()
-    data["display_geography"] = data.apply(display_geography, axis=1)
-    if selected_issues:
-        data = data[data["classified_issue_area"].isin(selected_issues)]
+    data["display_region"] = data.apply(display_region, axis=1)
+    if selected_issue:
+        data = data[data["classified_issue_area"] == selected_issue]
     if selected_tones:
         data = data[data["tone"].isin(selected_tones)]
     if selected_geos:
-        pattern = "|".join(selected_geos)
-        data = data[data["display_geography"].str.contains(pattern, case=False, regex=True, na=False)]
+        data = data[
+            data["display_region"].apply(
+                lambda value: any(region.strip() in selected_geos for region in str(value).split(","))
+            )
+        ]
     return data
 
 
@@ -347,7 +408,9 @@ def sentiment_label(score: float) -> str:
     return "mixed"
 
 
-def overview_chart(df: pd.DataFrame, selected_issues: list[str]) -> alt.Chart:
+def overview_chart(df: pd.DataFrame, selected_issue: str | None = None) -> alt.Chart:
+    if selected_issue:
+        df = df[df["classified_issue_area"] == selected_issue]
     chart_data = (
         df.assign(date=pd.to_datetime(df["date"]).dt.date)
         .groupby(["date", "classified_issue_area"])
@@ -357,14 +420,14 @@ def overview_chart(df: pd.DataFrame, selected_issues: list[str]) -> alt.Chart:
     chart_data["coverage"] = chart_data["avg_sentiment"].apply(sentiment_label)
     hover = alt.selection_point(fields=["date"], nearest=True, on="mouseover", empty=False)
 
-    if len(selected_issues) == 1:
+    if selected_issue:
         color = alt.Color(
             "coverage:N",
             scale=alt.Scale(domain=["negative", "mixed", "positive"], range=["#d65f5f", "#d5a11e", "#2e9d68"]),
             legend=alt.Legend(title="Coverage tone"),
         )
     else:
-        legend_select = alt.selection_point(fields=["classified_issue_area"], bind="legend")
+        legend_select = alt.selection_point(name="issue_select", fields=["classified_issue_area"], bind="legend")
         color = alt.Color("classified_issue_area:N", legend=alt.Legend(title="Issue"))
 
     base = alt.Chart(chart_data).encode(
@@ -379,36 +442,55 @@ def overview_chart(df: pd.DataFrame, selected_issues: list[str]) -> alt.Chart:
         ],
     )
     line = base.mark_line(point=True, strokeWidth=3).encode(
-        opacity=alt.condition(legend_select, alt.value(1), alt.value(0.16)) if len(selected_issues) != 1 else alt.value(1)
+        opacity=alt.condition(legend_select, alt.value(1), alt.value(0.16)) if not selected_issue else alt.value(1)
     )
     points = base.mark_circle(size=95).encode(opacity=alt.condition(hover, alt.value(1), alt.value(0)))
-    if len(selected_issues) != 1:
+    if not selected_issue:
         line = line.add_params(legend_select)
     return (line + points.add_params(hover)).properties(height=430)
+
+
+def selected_issue_from_chart_state(state: object) -> str | None:
+    try:
+        selection = dict(state.selection)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    raw = selection.get("issue_select")
+    if isinstance(raw, list) and raw:
+        first = raw[0]
+        if isinstance(first, dict):
+            return first.get("classified_issue_area")
+    if isinstance(raw, dict):
+        values = raw.get("classified_issue_area")
+        if isinstance(values, list) and values:
+            return str(values[0])
+        if isinstance(values, str):
+            return values
+    return None
 
 
 def render_story_table(df: pd.DataFrame) -> None:
     rows = df.sort_values("date", ascending=False).head(20)
     header = """
     <div class="story-row story-head">
-        <div>Date</div><div>Issue</div><div>Geography</div><div>Sentiment</div><div>Headline</div><div>Source</div>
+        <div>Date</div><div>Issue</div><div>Region</div><div>Tone</div><div>Headline</div><div>Source</div>
     </div>
     """
     body = []
-    source_col = "domain" if "domain" in rows.columns else "source_name"
     for _, row in rows.iterrows():
-        date = pd.to_datetime(row["date"]).strftime("%b %d")
+        parsed_date = pd.to_datetime(row["date"], errors="coerce")
+        date = f"{parsed_date.strftime('%b')} {parsed_date.day}, {parsed_date.year}" if not pd.isna(parsed_date) else ""
         issue = escape(str(row["classified_issue_area"]))
-        geography = escape(display_geography(row))
+        geography = escape(display_region(row))
         tone = escape(str(row["tone"]))
         headline = escape(str(row["headline"]))
-        source = escape(str(row.get(source_col, row.get("source_name", ""))))
+        source = escape(str(row.get("source_display", source_display_name(row))))
         body.append(
             f'<div class="story-row">'
             f'<div class="story-cell">{date}</div>'
             f'<div class="story-cell">{issue}</div>'
             f'<div class="story-cell">{geography}</div>'
-            f'<div class="story-cell">{tone}</div>'
+            f'<div class="story-cell story-tone">{tone}</div>'
             f'<div class="story-cell story-title">{headline}</div>'
             f'<div class="story-cell">{source}</div>'
             f"</div>"
@@ -421,101 +503,53 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Discussion briefing")
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
-    all_geos = sorted({geo.strip() for value in df.apply(display_geography, axis=1) for geo in str(value).split(",") if geo.strip()})
-    controls = st.columns([1.1, 1, 0.9])
-    selected_issues = controls[0].multiselect(
-        "Topics",
-        options=sorted(df["classified_issue_area"].unique()),
-        default=sorted(df["classified_issue_area"].unique()),
-    )
-    selected_geos = controls[1].multiselect("Places", options=all_geos, default=[])
-    selected_tones = controls[2].multiselect("Coverage tone", options=sorted(df["tone"].unique()), default=[])
+    controls = st.columns([1, 1])
+    selected_geos = controls[0].multiselect("Regions", options=NY_REGIONS, default=[])
+    selected_tones = controls[1].multiselect("Coverage tone", options=sorted(df["tone"].unique()), default=[])
 
-    current = filtered_for_overview(df, selected_issues, selected_geos, selected_tones)
-    if current.empty:
+    base = filtered_for_overview(df, selected_geos, selected_tones)
+    if base.empty:
         st.warning("No stories match the selected filters.")
         return
 
-    st.altair_chart(overview_chart(current, selected_issues), width="stretch")
+    st.caption("Click issue names in the legend to isolate discussion trends.")
+    prior_issue = st.session_state.get("selected_overview_issue")
+    if prior_issue and prior_issue not in set(base["classified_issue_area"]):
+        prior_issue = None
+        st.session_state["selected_overview_issue"] = None
+    if prior_issue:
+        st.altair_chart(overview_chart(base, prior_issue), width="stretch")
+    else:
+        chart_state = st.altair_chart(
+            overview_chart(base),
+            width="stretch",
+            key="overview_issue_chart",
+            on_select="rerun",
+            selection_mode=["issue_select"],
+        )
+        chart_issue = selected_issue_from_chart_state(chart_state)
+        if chart_issue:
+            st.session_state["selected_overview_issue"] = chart_issue
+            prior_issue = chart_issue
+
+    if prior_issue:
+        col_focus, col_clear = st.columns([4, 1])
+        col_focus.caption(f"Showing stories for {prior_issue}. Line color reflects whether coverage is negative, mixed, or positive.")
+        if col_clear.button("Show all issues"):
+            st.session_state["selected_overview_issue"] = None
+            st.rerun()
+    else:
+        st.caption(
+            "Change vs recent baseline compares current discussion volume with recent norms. "
+            "Select one issue from the legend to color the line by coverage tone."
+        )
+
+    current = filtered_for_overview(base, [], [], selected_issue=prior_issue)
     st.caption(
-        "Change vs recent baseline compares current discussion volume with recent norms. "
-        "When one topic is selected, line color reflects whether coverage is negative, mixed, or positive."
+        "Coverage tone is a simple reading of public language: concerned, mixed, or constructive."
     )
     st.write("**Stories driving the movement**")
     render_story_table(current)
-
-
-def render_narrative_radar(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
-    st.subheader("Narrative radar")
-    st.write(
-        "Transparent rules convert public discourse into issue movement, tone, and research priority."
-    )
-    st.markdown(
-        """
-        <div class="definition-note">
-        <strong>How to read this:</strong> change vs recent baseline estimates how far discussion volume is above
-        normal. A value near 3 means roughly 3x normal volume. The attention-and-tone signal combines repeated
-        keywords, urgency language, and source amplification. These are research triage signals, not truth labels.
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.expander("Keyword rules used for classification", expanded=False):
-        rules = pd.DataFrame(
-            [{"issue_area": issue, "sample_keywords": words} for issue, words in summarize_keyword_rules().items()]
-        )
-        st.dataframe(rules, hide_index=True, width="stretch")
-
-    selected_issue = st.selectbox(
-        "Issue focus",
-        options=rollup["classified_issue_area"].tolist(),
-    )
-    selected_row = rollup[rollup["classified_issue_area"] == selected_issue].iloc[0]
-    flag_class = f"flag-{selected_row['radar_flag']}"
-    st.markdown(
-        f"""
-        <div class="radar-card">
-          <div class="{flag_class}">{selected_row['radar_flag'].upper()}</div>
-          <div><strong>{selected_issue}</strong></div>
-          <div class="small-muted">
-            Discussion volume is about {max(float(selected_row['spike_score']), 1):.1f}x recent baseline |
-            Attention and tone {selected_row['avg_intensity']:.1f} |
-            Average sentiment {selected_row['avg_sentiment']:.2f}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    issue_df = df[df["classified_issue_area"] == selected_issue].sort_values("date", ascending=False)
-    st.write("**Top headlines and snippets**")
-    st.dataframe(
-        issue_df[
-            [
-                "date",
-                "source_name",
-                "headline",
-                "snippet",
-                "detected_geographies",
-                "tone",
-                "narrative_intensity",
-                "spike_score",
-                "keyword_hits",
-            ]
-        ].head(8),
-        hide_index=True,
-        width="stretch",
-        height=420,
-        column_config={
-            "headline": st.column_config.TextColumn("headline", width="large"),
-            "snippet": st.column_config.TextColumn("snippet", width="large"),
-            "date": st.column_config.TextColumn("date", width="small"),
-            "narrative_intensity": st.column_config.NumberColumn("attention and tone"),
-            "spike_score": st.column_config.NumberColumn("change vs baseline"),
-            "keyword_hits": st.column_config.TextColumn("matching terms", width="medium"),
-        },
-    )
 
 
 def render_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
@@ -529,9 +563,9 @@ def render_memo(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
 def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("Research outputs")
     st.write(
-        "These outputs are for research directors, strategists, and message teams. They reduce noisy public "
-        "discussion into briefs, geography watchlists, message hypotheses, and questions for polling, focus "
-        "groups, or message testing."
+        "Research directors, strategists, and message teams use these outputs to decide what deserves deeper "
+        "investigation. The goal is to reduce noisy public discussion into a weekly brief, a regional watchlist, "
+        "and concrete questions for polling, focus groups, and message testing."
     )
     outputs = export_research_outputs(df, rollup, ROOT / "outputs")
     paths = outputs["paths"]
@@ -575,19 +609,7 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     )
 
     st.write("**Message hypothesis bank**")
-    st.dataframe(
-        outputs["message_hypothesis_bank"],
-        hide_index=True,
-        width="stretch",
-        height=460,
-        column_config={
-            "economic_frame": st.column_config.TextColumn("economic frame", width="large"),
-            "competence_frame": st.column_config.TextColumn("competence frame", width="large"),
-            "values_trust_frame": st.column_config.TextColumn("values/trust frame", width="large"),
-            "recommended_audience_hypothesis": st.column_config.TextColumn("audience hypothesis", width="large"),
-            "risk_or_caveat": st.column_config.TextColumn("risk/caveat", width="large"),
-        },
-    )
+    st.caption("Generated as a downloadable research artifact for strategist review.")
     st.download_button(
         "Download message_hypothesis_bank.csv",
         data=outputs["message_hypothesis_bank"].to_csv(index=False),
@@ -608,13 +630,12 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
 def render_for_experimentation(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("For experimentation")
     st.write(
-        "This is how narrative intelligence could feed adaptive experimentation systems while preserving "
-        "human review. The goal is to pass structured research context into future tests, not to optimize voters."
+        "This shows how discussion trends could feed future experimentation systems while preserving human review."
     )
 
     context_features = build_context_features(df, rollup)
     selected_issue = st.selectbox(
-        "Issue for example payload",
+        "Example structured experiment input",
         options=sorted(df["classified_issue_area"].unique()),
         key="bandit_issue",
     )
@@ -647,14 +668,14 @@ def render_for_experimentation(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         "Rewards are research and engagement signals. This demo does not claim measured persuasion effects."
     )
 
-    payload = {
+    structured_input = {
         "context": context_sample.to_dict(orient="records")[0],
         "candidate_messages": arms[["message_arm", "hypothesis"]].to_dict(orient="records"),
         "reward_signals": REWARD_SIGNALS,
         "human_review_required": True,
     }
-    st.write("**Example experiment payload**")
-    st.json(payload)
+    st.write("**Example structured experiment input**")
+    st.json(structured_input)
 
 
 def render_about() -> None:
@@ -665,17 +686,21 @@ def render_about() -> None:
         which topics are rising, where discussion is increasing, whether coverage is positive or negative, and
         which stories should become polling, focus group, or message-testing questions.
 
-        Methodology is intentionally transparent: public stories are classified with keyword rules, scored for
-        tone, grouped by issue and place, and converted into human research outputs. The default simulated
-        statewide discussion feed is extrapolated from GDELT-derived New York patterns because narrowly
-        constrained live public-news volume can be sparse.
+        **Methodology:** public stories and posts are classified with transparent keyword rules, scored for tone,
+        grouped into six New York regions, and converted into human research outputs. The default simulated
+        statewide discussion feed shows the workflow at monitoring scale. Live GDELT news and public Reddit posts
+        can be fetched as reproducible public-source inputs.
 
-        Limitations: no private voter data, no voter microtargeting, no demographic modeling, and no claim of
-        measured persuasion effects. Production use would require platform compliance, privacy/legal review,
-        human analyst review, and experimental safeguards.
+        **Data sources:** GDELT public news, Reddit public posts, and a simulated statewide discussion feed.
+        Real campaign systems would usually combine public news, public discussion, creator/media monitoring,
+        polling, field notes, and campaign-owned engagement data.
 
-        [LinkedIn](https://www.linkedin.com/in/davidwrauch/)  
-        [GitHub](https://github.com/davidwrauch/social-listening)
+        **Limitations:** public and aggregate-only analysis; no private voter data; no voter microtargeting;
+        no attempt to identify individuals; no demographic profiling; no persuasion claims. Production use would
+        require platform compliance, privacy/legal review, analyst review, and experimental safeguards.
+
+        **David Rauch:** [LinkedIn](https://www.linkedin.com/in/davidwrauch/)  
+        **GitHub repository:** [social-listening](https://github.com/davidwrauch/social-listening)
         """
     )
 
@@ -688,13 +713,22 @@ def main() -> None:
         st.caption("Choose the discussion feed and time period.")
         data_source = st.radio(
             "Data source",
-            options=["Simulated statewide discussion feed", "Real public news (GDELT)", "Small sample feed"],
+            options=[
+                "Simulated statewide discussion feed",
+                "Real public news and Reddit discussion",
+                "Real GDELT public news only",
+            ],
             index=0,
         )
         st.caption(
-            "Real public news volume from GDELT is relatively sparse for narrowly constrained NY political "
-            "narratives, so the simulated statewide feed extrapolates realistic monitoring volume "
-            "from observed patterns."
+            "This prototype combines open public news signals with public online discussion signals. "
+            "The simulated statewide feed demonstrates how the same workflow behaves at campaign-monitoring scale. "
+            "GDELT and Reddit are included because they are reproducible public sources, not because they represent "
+            "the full universe of voter opinion."
+        )
+        st.caption(
+            "Real campaign systems would usually combine public news, public discussion, creator/media monitoring, "
+            "polling, field notes, and campaign-owned engagement data."
         )
         date_window = st.selectbox(
             "Stories analyzed",
@@ -704,64 +738,77 @@ def main() -> None:
         days_back = int(date_window.split()[1])
 
         gdelt_error = None
-        if data_source == "Real public news (GDELT)":
-            if GDELT_PATH.exists():
-                st.caption(f"Loaded `{GDELT_PATH.name}`. Fetch again for fresher public news.")
-            else:
+        reddit_error = None
+        if data_source in {"Real public news and Reddit discussion", "Real GDELT public news only"}:
+            if not GDELT_PATH.exists():
                 st.info("No local GDELT cache yet.")
-            if st.button("Fetch latest GDELT articles", type="primary"):
+            if st.button("Fetch latest GDELT news", type="primary"):
                 try:
                     fetch_latest_gdelt_articles(days_back=days_back, output_path=GDELT_PATH)
                     load_gdelt_articles.clear()
+                    load_combined_real_sources.clear()
                     st.success("Fetched latest GDELT articles.")
                     st.rerun()
                 except Exception as exc:
                     gdelt_error = str(exc)
-                    st.warning(f"GDELT fetch failed. Falling back to sample data. {gdelt_error}")
+                    st.warning(f"GDELT fetch failed. The app can keep using the simulated statewide feed. {gdelt_error}")
+
+        if data_source == "Real public news and Reddit discussion":
+            if not REDDIT_PATH.exists():
+                st.info("No local Reddit cache yet.")
+            if st.button("Fetch latest Reddit posts"):
+                try:
+                    fetch_latest_reddit_posts(days_back=days_back, output_path=REDDIT_PATH)
+                    load_reddit_posts.clear()
+                    load_combined_real_sources.clear()
+                    st.success("Fetched latest public Reddit posts.")
+                    st.rerun()
+                except Exception as exc:
+                    reddit_error = str(exc)
+                    st.warning(f"Reddit fetch failed or was rate-limited. The app can keep using the simulated statewide feed. {reddit_error}")
 
         if data_source == "Simulated statewide discussion feed":
             df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
-        elif data_source == "Real public news (GDELT)" and GDELT_PATH.exists():
+        elif data_source == "Real public news and Reddit discussion" and (GDELT_PATH.exists() or REDDIT_PATH.exists()):
+            try:
+                df = filter_recent(
+                    load_combined_real_sources(
+                        str(GDELT_PATH) if GDELT_PATH.exists() else None,
+                        str(REDDIT_PATH) if REDDIT_PATH.exists() else None,
+                    ),
+                    days_back,
+                )
+                if df.empty:
+                    st.warning("No real-source rows in the selected time period. Showing the simulated statewide feed.")
+                    df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+            except Exception as exc:
+                st.warning(f"Could not load real-source caches. Showing the simulated statewide feed. {exc}")
+                df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
+        elif data_source == "Real GDELT public news only" and GDELT_PATH.exists():
             try:
                 df = filter_recent(load_gdelt_articles(str(GDELT_PATH)), days_back)
                 if df.empty:
-                    st.warning("No GDELT rows in the selected time period. Falling back to sample data.")
-                    df = load_sample_articles()
+                    st.warning("No GDELT rows in the selected time period. Showing the simulated statewide feed.")
+                    df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
             except Exception as exc:
-                st.warning(f"Could not load GDELT cache. Falling back to sample data. {exc}")
-                df = load_sample_articles()
+                st.warning(f"Could not load GDELT cache. Showing the simulated statewide feed. {exc}")
+                df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
         else:
-            if data_source == "Real public news (GDELT)" and not GDELT_PATH.exists() and gdelt_error is None:
-                st.warning("Real GDELT data has not been fetched yet. Showing sample data until you fetch.")
-            df = load_sample_articles()
+            if data_source != "Simulated statewide discussion feed" and gdelt_error is None and reddit_error is None:
+                st.warning("Real public-source data has not been fetched yet. Showing the simulated statewide feed.")
+            df = filter_recent(load_operational_articles(str(OPERATIONAL_PATH)), days_back)
 
         st.divider()
-        st.caption("Filters")
-        issues = st.multiselect(
-            "Issue areas",
-            options=sorted(df["classified_issue_area"].unique()),
-            default=sorted(df["classified_issue_area"].unique()),
-        )
-        source_types = st.multiselect(
-            "Source types",
-            options=sorted(df["source_type"].unique()),
-            default=sorted(df["source_type"].unique()),
-        )
-        st.divider()
-        st.caption("GDELT requires internet access, but no API key. Sample mode works offline.")
+        st.caption("GDELT and Reddit require internet access, but no API key for this basic demo.")
 
     rollup = issue_rollup(df)
-    filtered = df[
-        df["classified_issue_area"].isin(issues)
-        & df["source_type"].isin(source_types)
-    ].copy()
-    filtered_rollup = issue_rollup(filtered) if not filtered.empty else rollup
+    filtered = df.copy()
+    filtered_rollup = rollup
 
     render_app_title()
-    tab_overview, tab_radar, tab_memo, tab_outputs, tab_experimentation, tab_about = st.tabs(
+    tab_overview, tab_memo, tab_outputs, tab_experimentation, tab_about = st.tabs(
         [
             "Overview",
-            "Narrative radar",
             "Research memo",
             "Research outputs",
             "For experimentation",
@@ -770,8 +817,6 @@ def main() -> None:
     )
     with tab_overview:
         render_overview(filtered, filtered_rollup)
-    with tab_radar:
-        render_narrative_radar(filtered, filtered_rollup)
     with tab_memo:
         render_memo(filtered, filtered_rollup)
     with tab_outputs:

@@ -47,10 +47,6 @@ NY_GEOGRAPHY_TERMS = [
     "Albany",
 ]
 
-LIVE_GEOGRAPHY_TERMS = [
-    "New York",
-]
-
 ISSUE_KEYWORD_TERMS: dict[str, list[str]] = {
     "affordability / cost of living": [
         "affordability",
@@ -76,15 +72,6 @@ ISSUE_KEYWORD_TERMS: dict[str, list[str]] = {
         "government failure",
     ],
 }
-
-LIVE_ISSUE_SEEDS: dict[str, str] = {
-    "affordability / cost of living": "inflation",
-    "housing / rent": "housing",
-    "immigration / public safety": "immigration",
-    "AI / tech jobs": "artificial intelligence",
-    "corruption / competence / trust": "corruption",
-}
-
 
 def build_gdelt_doc_api_url(query: str, start_datetime: str, end_datetime: str, max_records: int = 50) -> str:
     params = {
@@ -130,10 +117,6 @@ def _ny_term_query(issue_query: str, geography_term: str) -> str:
     return f"({issue_query}) AND {_quote_if_needed(geography_term)} sourcelang:eng"
 
 
-def _live_term_query(issue_area: str, geography_term: str) -> str:
-    return f"{LIVE_ISSUE_SEEDS[issue_area]} {geography_term} sourcelang:eng"
-
-
 def _quote_if_needed(term: str) -> str:
     return f'"{term}"' if " " in term else term
 
@@ -146,51 +129,41 @@ def fetch_gdelt_issue(
     timeout_seconds: int = 30,
 ) -> list[dict]:
     rows: list[dict] = []
-    per_geo_records = max(1, max_records // 4)
-    for geography_term in LIVE_GEOGRAPHY_TERMS:
-        url = build_gdelt_timespan_url(
-            _live_term_query(issue_area, geography_term),
-            days_back=days_back,
-            max_records=per_geo_records,
+    query = _ny_query(issue_query)
+    url = build_gdelt_timespan_url(query, days_back=days_back, max_records=max_records)
+    response_data = _request_json(url, timeout_seconds=timeout_seconds, attempts=2)
+    for article in response_data.get("articles", []):
+        title = article.get("title", "")
+        url_value = article.get("url", "")
+        domain = article.get("domain", "")
+        seendate = article.get("seendate", "")
+        snippet = _build_snippet(article, "New York geography block", issue_query)
+        geography_matches = _matched_terms(f"{title} {snippet}", NY_GEOGRAPHY_TERMS)
+        issue_matches = _matched_terms(f"{title} {snippet}", ISSUE_KEYWORD_TERMS[issue_area])
+        relevance_score = _relevance_score(
+            title=title,
+            snippet=snippet,
+            issue_terms=ISSUE_KEYWORD_TERMS[issue_area],
         )
-        try:
-            payload = _request_json(url, timeout_seconds=timeout_seconds, attempts=1)
-        except Exception:
-            time.sleep(0.2)
-            continue
-        for article in payload.get("articles", []):
-            title = article.get("title", "")
-            url_value = article.get("url", "")
-            domain = article.get("domain", "")
-            seendate = article.get("seendate", "")
-            snippet = _build_snippet(article, geography_term, issue_query)
-            geography_matches = _matched_terms(f"{title} {snippet}", NY_GEOGRAPHY_TERMS)
-            issue_matches = _matched_terms(f"{title} {snippet}", ISSUE_KEYWORD_TERMS[issue_area])
-            relevance_score = _relevance_score(
-                title=title,
-                snippet=snippet,
-                issue_terms=ISSUE_KEYWORD_TERMS[issue_area],
-            )
-            rows.append(
-                {
-                    "date": _normalize_date(seendate),
-                    "source_name": domain or article.get("sourcecountry", ""),
-                    "headline": title,
-                    "snippet": snippet,
-                    "url": url_value,
-                    "issue_area": issue_area,
-                    "geography_refs": "; ".join(geography_matches),
-                    "geography_matches": "; ".join(geography_matches),
-                    "issue_keyword_matches": "; ".join(issue_matches),
-                    "relevance_score": relevance_score,
-                    "source_type": "public news via GDELT",
-                    "domain": domain,
-                    "seendate": seendate,
-                    "language": article.get("language", ""),
-                    "gdelt_query": _ny_term_query(issue_query, geography_term),
-                }
-            )
-        time.sleep(0.1)
+        rows.append(
+            {
+                "date": _normalize_date(seendate),
+                "source_name": domain or article.get("sourcecountry", ""),
+                "headline": title,
+                "snippet": snippet,
+                "url": url_value,
+                "issue_area": issue_area,
+                "geography_refs": "; ".join(geography_matches),
+                "geography_matches": "; ".join(geography_matches),
+                "issue_keyword_matches": "; ".join(issue_matches),
+                "relevance_score": relevance_score,
+                "source_type": "public news via GDELT",
+                "domain": domain,
+                "seendate": seendate,
+                "language": article.get("language", ""),
+                "gdelt_query": query,
+            }
+        )
     return rows
 
 

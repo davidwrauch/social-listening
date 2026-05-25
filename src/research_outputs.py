@@ -32,13 +32,15 @@ def split_values(value: object) -> list[str]:
 
 
 def row_geographies(row: pd.Series) -> list[str]:
-    for column in ["geography_matches", "detected_geographies", "geography_refs"]:
+    for column in ["region", "geography", "geography_matches", "detected_geographies", "geography_refs"]:
         if column in row and split_values(row[column]):
             return split_values(row[column])
     return ["Statewide"]
 
 
 def source_column(df: pd.DataFrame) -> str:
+    if "source_display" in df.columns:
+        return "source_display"
     return "domain" if "domain" in df.columns else "source_name"
 
 

@@ -77,6 +77,7 @@ def simulate_policies(log_df: pd.DataFrame, seed: int = 7) -> pd.DataFrame:
 
 def build_context_features(radar_df: pd.DataFrame, rollup_df: pd.DataFrame) -> pd.DataFrame:
     latest_by_issue = radar_df.sort_values("date").groupby("classified_issue_area").tail(1)
+    geography_column = "region" if "region" in latest_by_issue.columns else "detected_geographies"
     merged = latest_by_issue.merge(
         rollup_df[["classified_issue_area", "urgency_level"]],
         on="classified_issue_area",
@@ -85,7 +86,7 @@ def build_context_features(radar_df: pd.DataFrame, rollup_df: pd.DataFrame) -> p
     return merged[
         [
             "classified_issue_area",
-            "detected_geographies",
+            geography_column,
             "source_type",
             "sentiment_score",
             "narrative_intensity",
@@ -96,6 +97,8 @@ def build_context_features(radar_df: pd.DataFrame, rollup_df: pd.DataFrame) -> p
     ].rename(
         columns={
             "classified_issue_area": "issue_area",
-            "detected_geographies": "geography",
+            geography_column: "region",
+            "narrative_intensity": "attention_and_tone",
+            "spike_score": "change_vs_recent_baseline",
         }
     )
