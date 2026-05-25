@@ -151,6 +151,12 @@ def source_display_name(row: pd.Series) -> str:
     return label.title() if label else domain
 
 
+def clear_overview_filters() -> None:
+    st.session_state["selected_overview_issue"] = None
+    st.session_state["overview_regions"] = []
+    st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
+
+
 def inject_css() -> None:
     st.markdown(
         """
@@ -319,6 +325,44 @@ def inject_css() -> None:
             border-radius: 16px;
             padding: 18px 20px;
             margin: 6px 0 18px 0;
+        }
+        .chart-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin: 8px 0 18px 0;
+            color: #68707d;
+            font-size: 0.82rem;
+        }
+        .legend-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            border-radius: 999px;
+            padding: 7px 10px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(17, 19, 24, 0.06);
+            box-shadow: 0 8px 22px rgba(17, 19, 24, 0.035);
+            white-space: nowrap;
+        }
+        .legend-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 999px;
+            display: inline-block;
+        }
+        .legend-line {
+            width: 22px;
+            border-radius: 999px;
+            display: inline-block;
+            background: #77808d;
+        }
+        .line-thick {
+            height: 5px;
+        }
+        .line-thin {
+            height: 2px;
         }
         @media (max-width: 900px) {
             .story-row {
@@ -578,7 +622,9 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
     st.session_state.setdefault("overview_regions", [])
-    selected_geos = st.multiselect("Places", options=NY_REGIONS, key="overview_regions")
+    filter_col, reset_col = st.columns([1.5, 0.45])
+    selected_geos = filter_col.multiselect("Places", options=NY_REGIONS, key="overview_regions")
+    reset_col.button("Clear filters", key="clear_overview_filters_button", on_click=clear_overview_filters)
 
     base = filtered_for_overview(df, selected_geos, [])
     if base.empty:
@@ -586,7 +632,19 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
         return
 
     st.markdown("**Issue trends over time**")
-    st.caption("Click issue names to isolate trends.")
+    st.caption("Click an issue name to filter stories. Use Clear filters to return to the full view.")
+    st.markdown(
+        """
+        <div class="chart-legend">
+            <span class="legend-pill"><span class="legend-dot" style="background:#c75f5f"></span>Red = mostly negative coverage</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#d8a923"></span>Yellow = mixed coverage</span>
+            <span class="legend-pill"><span class="legend-dot" style="background:#3d9a6a"></span>Green = mostly constructive coverage</span>
+            <span class="legend-pill"><span class="legend-line line-thick"></span>Thicker line = more stories/discussion items</span>
+            <span class="legend-pill"><span class="legend-line line-thin"></span>Thinner line = fewer stories/discussion items</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     prior_issue = st.session_state.get("selected_overview_issue")
     if prior_issue and prior_issue not in set(base["classified_issue_area"]):
         prior_issue = None
