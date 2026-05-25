@@ -157,6 +157,17 @@ def clear_overview_filters() -> None:
     st.session_state["overview_chart_reset"] = st.session_state.get("overview_chart_reset", 0) + 1
 
 
+def handle_clear_filter_link() -> None:
+    if st.query_params.get("clear_filters") != "1":
+        return
+    clear_overview_filters()
+    del st.query_params["clear_filters"]
+
+
+def render_floating_clear_filters() -> None:
+    st.markdown('<a class="floating-clear" href="?clear_filters=1">Clear filters</a>', unsafe_allow_html=True)
+
+
 def inject_css() -> None:
     st.markdown(
         """
@@ -364,6 +375,30 @@ def inject_css() -> None:
         .line-thin {
             height: 2px;
         }
+        .floating-clear {
+            position: fixed;
+            right: 28px;
+            bottom: 28px;
+            z-index: 9999;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 1px solid rgba(17, 19, 24, 0.10);
+            box-shadow: 0 18px 42px rgba(17, 19, 24, 0.14);
+            color: #20242c !important;
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-decoration: none !important;
+            backdrop-filter: blur(16px);
+        }
+        .floating-clear:hover {
+            background: rgba(255, 255, 255, 0.98);
+            border-color: rgba(17, 19, 24, 0.18);
+        }
         @media (max-width: 900px) {
             .story-row {
                 grid-template-columns: 1fr;
@@ -558,6 +593,49 @@ def issue_mini_chart(
     return (line + points).add_params(hover, select_issue).properties(height=142)
 
 
+ISSUE_AREA_COLORS = {
+    "AI / tech jobs": "#8fb5ff",
+    "affordability / cost of living": "#f2b872",
+    "corruption / competence / trust": "#b9a7e8",
+    "housing / rent": "#7bc9b4",
+    "immigration / public safety": "#f08f8f",
+}
+
+
+def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.Timestamp) -> alt.Chart:
+    issues = sorted(df["classified_issue_area"].dropna().unique())
+    date_index = pd.date_range(start_date, end_date, freq="D")
+    grid = pd.MultiIndex.from_product([date_index, issues], names=["date", "classified_issue_area"]).to_frame(index=False)
+    data = df.copy()
+    data["date"] = pd.to_datetime(data["date"], errors="coerce").dt.normalize()
+    counts = data.groupby(["date", "classified_issue_area"]).size().reset_index(name="stories")
+    chart_data = grid.merge(counts, on=["date", "classified_issue_area"], how="left")
+    chart_data["stories"] = chart_data["stories"].fillna(0).astype(int)
+    return (
+        alt.Chart(chart_data)
+        .mark_area(opacity=0.78, interpolate="monotone")
+        .encode(
+            x=alt.X("date:T", title=None, axis=alt.Axis(format="%b %d", labelAngle=-35, tickCount=6, grid=False)),
+            y=alt.Y("stories:Q", title="Stories / discussion items", stack=True, axis=alt.Axis(tickCount=4)),
+            color=alt.Color(
+                "classified_issue_area:N",
+                title=None,
+                scale=alt.Scale(
+                    domain=list(ISSUE_AREA_COLORS.keys()),
+                    range=list(ISSUE_AREA_COLORS.values()),
+                ),
+                legend=alt.Legend(orient="bottom", columns=2, labelLimit=260),
+            ),
+            tooltip=[
+                alt.Tooltip("date:T", title="Date"),
+                alt.Tooltip("classified_issue_area:N", title="Issue"),
+                alt.Tooltip("stories:Q", title="Stories"),
+            ],
+        )
+        .properties(height=250)
+    )
+
+
 def issue_key(issue: str) -> str:
     return "".join(char if char.isalnum() else "_" for char in issue.lower()).strip("_")
 
@@ -622,9 +700,7 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.write("Track which topics are rising, where the conversation is moving, and which stories deserve research attention.")
 
     st.session_state.setdefault("overview_regions", [])
-    filter_col, reset_col = st.columns([1.5, 0.45])
-    selected_geos = filter_col.multiselect("Places", options=NY_REGIONS, key="overview_regions")
-    reset_col.button("Clear filters", key="clear_overview_filters_button", on_click=clear_overview_filters)
+    selected_geos = st.multiselect("Places", options=NY_REGIONS, key="overview_regions")
 
     base = filtered_for_overview(df, selected_geos, [])
     if base.empty:
@@ -652,6 +728,9 @@ def render_overview(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     chart_dates = pd.to_datetime(base["date"], errors="coerce").dropna()
     chart_start = chart_dates.min().normalize()
     chart_end = chart_dates.max().normalize()
+
+    st.write("This shows which topics are taking up more of the discussion over time.")
+    st.altair_chart(topic_share_chart(base, chart_start, chart_end), width="stretch")
 
     for issue in sorted(df["classified_issue_area"].dropna().unique()):
         issue_df = base[base["classified_issue_area"] == issue]
@@ -772,7 +851,9 @@ def render_research_outputs(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
 def render_for_experimentation(df: pd.DataFrame, rollup: pd.DataFrame) -> None:
     st.subheader("For experimentation")
     st.write(
-        "This shows how discussion trends could feed future experimentation systems while preserving human review."
+        "Social listening turns the news cycle into structured context for experimentation. As new stories take "
+        "up more attention, campaign teams can test message frames that match the current issue environment, "
+        "then adapt future outreach based on what is actually resonating."
     )
 
     context_features = build_context_features(df, rollup)
@@ -849,6 +930,8 @@ def render_about() -> None:
 
 def main() -> None:
     inject_css()
+    handle_clear_filter_link()
+    render_floating_clear_filters()
 
     with st.sidebar:
         st.header("Controls")
