@@ -828,7 +828,7 @@ def topic_share_chart(df: pd.DataFrame, start_date: pd.Timestamp, end_date: pd.T
                 alt.Tooltip("share:Q", title="Share", format=".0%"),
             ],
         )
-        .properties(height=625)
+        .properties(height=315)
         .configure_axisY(titlePadding=14, labelPadding=6)
     )
 
